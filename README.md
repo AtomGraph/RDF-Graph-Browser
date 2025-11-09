@@ -1,30 +1,44 @@
-# 3D Force Graph + SaxonJS Integration Test
+# RDF Graph Browser
 
-This test demonstrates integration between:
+A browser-based RDF graph visualization tool that combines:
 - **3d-force-graph** - 3D force-directed graph visualization using WebGL/three.js
-- **SaxonJS** - Client-side XSLT 3.0 processor
+- **SaxonJS 3.0** - Client-side XSLT 3.0 processor
+- **RDF/XML** - Semantic web data format
 
-## What it proves
+## Features
 
-1. ✅ 3D Force Graph can render and run in the same page as SaxonJS
-2. ✅ JavaScript events from the graph can call XSLT functions
-3. ✅ XSLT can manipulate the DOM (update info panels, event log)
-4. ✅ Bidirectional communication: JS → XSLT and XSLT → JS
+- **Load RDF documents** - Enter any HTTP(S) URL to load and visualize RDF/XML data
+- **3D visualization** - Interactive 3D force-directed graph with color-coded nodes by type
+- **Navigate graphs** - Double-click nodes to load and explore linked RDF resources
+- **Inspect resources** - Click nodes to view their RDF properties
+- **XSLT-driven** - All logic implemented in client-side XSLT 3.0
 
-## Files
+## Project Structure
 
-- `index.html` - Main HTML page with graph container and UI
-- `graph-client.js` - JavaScript glue code that initializes the 3D graph and bridges events to XSLT
-- `graph-client.xsl` - XSLT stylesheet with event handlers
-- `graph-client.xsl.sef.json` - Compiled XSLT (SEF format) for SaxonJS
-- `SaxonJS3.js` - SaxonJS library
-- `generate-sef.sh` - Script to compile XSLT to SEF
+```
+RDF-Graph-Browser/
+├── index.html              # Main HTML page
+├── generate-sef.sh         # Script to compile XSLT to SEF
+├── lib/                    # External libraries
+│   └── SaxonJS3.js        # SaxonJS 3.0 library
+├── src/                    # XSLT source files
+│   ├── graph-client.xsl   # Main XSLT client with event handlers
+│   ├── 3d-force-graph.xsl # 3D Force Graph initialization
+│   └── normalize-rdfxml.xsl # RDF/XML normalization
+├── dist/                   # Compiled output
+│   └── graph-client.xsl.sef.json # Compiled SEF for SaxonJS
+└── examples/               # Sample RDF data
+    └── example.rdf        # Example RDF document
+```
 
-## Dependencies (loaded from CDN)
+## Dependencies
 
-- **3d-force-graph** (v1.73.3) - 3D force-directed graph visualization (includes three.js)
+### From CDN
+- **[3d-force-graph](https://github.com/vasturiano/3d-force-graph)** (v1.73.3) - 3D force-directed graph visualization (includes three.js)
+- **three-spritetext** - Text sprites for 3D labels
 
-Note: Text labels are rendered using canvas-based sprites created directly with three.js (accessed from 3d-force-graph's bundled instance), avoiding dependency conflicts.
+### Local
+- **[SaxonJS 3.0](https://www.saxonica.com/saxonjs/index.xml)** - `lib/SaxonJS3.js`
 
 ## Setup
 
@@ -46,164 +60,165 @@ If you modify the XSLT, regenerate the SEF file:
 ./generate-sef.sh
 ```
 
-## Running the test
+## Usage
 
-### Option 1: Via LinkedDataHub Docker (Recommended)
+### Loading RDF Documents
 
-The test folder is mounted at `/static/3d-force-graph-test/` in the LinkedDataHub docker-compose setup.
+1. **Default**: On page load, `examples/example.rdf` is loaded automatically
+2. **Custom URL**: Enter any HTTP(S) URL in the input field and click "Go" or press Enter
+3. **Navigate**: Double-click any node with an HTTP(S) URI to load that resource
 
-1. Make sure LinkedDataHub is running:
-```bash
-cd ../LinkedDataHub
-docker-compose up
-```
+### Interactive Features
 
-2. Open in browser:
-```
-https://localhost:4443/static/3d-force-graph-test/
-```
+- **Single-click node** - View resource details in info panel
+- **Double-click node** - Load and visualize that node's RDF document
+- **Right-click node** - Context menu (future feature)
+- **Hover node** - Show tooltip with node label and type
+- **Drag node** - Reposition nodes in 3D space
+- **Rotate view** - Click and drag background to rotate
+- **Zoom** - Mouse wheel to zoom in/out
+- **Reset Camera** - Button to return to default view
 
-**Note:** Accept the self-signed certificate warning in your browser.
+### Developer Console
 
-### Option 2: Using Python's HTTP server (standalone)
-
-```bash
-python3 -m http.server 8000
-```
-
-Then open: http://localhost:8000/index.html
-
-### Option 3: Using Node.js http-server (standalone)
-
-```bash
-npx http-server -p 8000
-```
-
-Then open: http://localhost:8000/index.html
-
-**Note:** You MUST use a web server (not `file://`) because:
-- SaxonJS needs to load the SEF file via HTTP
-- 3d-force-graph uses modules that require HTTP context
-
-## What to test
-
-### Interactive features:
-
-1. **Click nodes** - Info panel updates, event logged
-2. **Right-click nodes** - Event logged (context menu could be added)
-3. **Click links** - Shows link details in info panel
-4. **Click background** - Clears info panel
-5. **Hover nodes** - Tooltip appears
-6. **Drag nodes** - Nodes can be repositioned
-7. **Rotate view** - Click and drag background to rotate
-8. **Zoom** - Mouse wheel to zoom in/out
-
-### Buttons (controlled by XSLT):
-
-- **Reset Camera** - Returns to default view
-- **Add Random Node** - Adds a new node dynamically
-- **Toggle Labels** - Shows/hides node and link labels
-
-### Event logging:
-
-All events are logged to the browser console using `<xsl:message>` from the XSLT templates. Open the browser's developer console to see event logs.
+All events and operations are logged to the browser console using `<xsl:message>` from XSLT templates. Open the browser's developer console to see:
+- RDF document loading
+- Graph updates
+- Node interactions
+- Error messages
 
 ## Architecture
 
+### XSLT-Driven Design
+
+All application logic is implemented in XSLT 3.0 running in the browser via SaxonJS:
+
 ```
-┌─────────────────────────────────────────┐
-│           Browser Window                │
-│                                         │
-│  ┌──────────────┐    ┌──────────────┐ │
-│  │   WebGL      │    │  HTML/DOM    │ │
-│  │   Canvas     │    │  Overlays    │ │
-│  │ (3D graph)   │    │  (UI)        │ │
-│  └──────────────┘    └──────────────┘ │
-│         ↕                    ↕         │
-│  ┌──────────────────────────────────┐ │
-│  │     graph-client.js              │ │
-│  │  (Event bridge)                  │ │
-│  └──────────────────────────────────┘ │
-│         ↕                              │
-│  ┌──────────────────────────────────┐ │
-│  │    SaxonJS (XSLT processor)      │ │
-│  │  - Event handlers                │ │
-│  │  - DOM manipulation              │ │
-│  │  - Business logic                │ │
-│  └──────────────────────────────────┘ │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│              Browser Window                     │
+│                                                 │
+│  ┌──────────────┐         ┌─────────────────┐ │
+│  │   WebGL      │         │   HTML/DOM      │ │
+│  │   Canvas     │◄────────┤   UI Elements   │ │
+│  │ (3D graph)   │         │   Info Panel    │ │
+│  └──────────────┘         └─────────────────┘ │
+│         ▲                          ▲           │
+│         │                          │           │
+│         │  ┌────────────────────────────────┐ │
+│         └──┤   SaxonJS XSLT 3.0 Processor   │ │
+│            │                                │ │
+│            │  • graph-client.xsl            │ │
+│            │    - Event handlers            │ │
+│            │    - RDF loading               │ │
+│            │    - DOM manipulation          │ │
+│            │                                │ │
+│            │  • 3d-force-graph.xsl          │ │
+│            │    - Graph initialization      │ │
+│            │    - Event bridge via          │ │
+│            │      CustomEvents              │ │
+│            │                                │ │
+│            │  • normalize-rdfxml.xsl        │ │
+│            │    - RDF/XML normalization     │ │
+│            │    - URI resolution            │ │
+│            └────────────────────────────────┘ │
+│                          ▲                     │
+│                          │                     │
+│                  ┌───────────────┐            │
+│                  │  HTTP Fetch   │            │
+│                  │  RDF/XML docs │            │
+│                  │  (with CORS)  │            │
+│                  └───────────────┘            │
+└─────────────────────────────────────────────────┘
 ```
 
-## Code Organization
+### Event Flow
 
-### Functions exposed on `window` object (minimal)
-Only functions that need to be called from outside `graph-client.js` are exposed:
-- `window.initGraph()` - Called from inline script in `index.html`
-- `window.addRandomNode()` - Called from XSLT-generated button `onclick` attributes
-- `window.resetCamera()` - Called from XSLT-generated button `onclick` attributes
-- `window.toggleLabels()` - Called from XSLT-generated button `onclick` attributes
+1. **Page Load**
+   - SaxonJS loads and compiles SEF
+   - XSLT `main` template initializes 3D Force Graph
+   - Default RDF document is loaded via `ixsl:http-request()`
 
-### Internal functions (not on `window`)
-All event handler bridge functions are internal and only called from within `graph-client.js`:
-- `handleNodeClick()` - Called from ForceGraph3D `onNodeClick` callback
-- `handleNodeRightClick()` - Called from ForceGraph3D `onNodeRightClick` callback
-- `handleNodeHover()` - Called from ForceGraph3D `onNodeHover` callback
-- `handleLinkClick()` - Called from ForceGraph3D `onLinkClick` callback
-- `handleBackgroundClick()` - Called from ForceGraph3D `onBackgroundClick` callback
+2. **User Interaction**
+   - User clicks/hovers/double-clicks node in 3D graph
+   - JavaScript event handler creates `CustomEvent` with node details
+   - Event dispatched to `document`
+   - XSLT template in `ixsl:on*` mode handles event
+   - XSLT manipulates DOM using `ixsl:set-style`, `xsl:result-document`
 
-These bridge functions call XSLT templates using `SaxonJS.transform()` with expanded QName syntax.
+3. **RDF Loading**
+   - User enters URL or double-clicks node
+   - XSLT calls `load-and-update-graph` template
+   - `ixsl:http-request()` with `'pool': 'xml'` fetches and caches RDF
+   - RDF/XML is normalized (3 passes)
+   - Converted to 3D Force Graph JSON format
+   - Graph visualization updated
 
-## Event flow example
+### Key XSLT Features Used
 
-1. User hovers over a node in the 3D graph
-2. 3d-force-graph calls `onNodeHover` callback
-3. Callback invokes internal `handleNodeHover()` function
-4. Function calls XSLT template via `SaxonJS.transform()` with `initialTemplate: "Q{http://example.org/graph#}handleNodeHover"`
-5. XSLT template `graph:handleNodeHover` executes:
-   - Sets tooltip display, position, and content using `ixsl:set-style` and `xsl:result-document`
-   - All DOM manipulation happens in XSLT
-6. Changes are visible in browser
+- **IXSL extensions** - DOM manipulation, HTTP requests, JavaScript interop
+- **Promises** - Async RDF loading with `ixsl:promise`
+- **Document pool** - Caching fetched RDF with `'pool': 'xml'`
+- **Keys** - Fast RDF resource lookup with `key('resources', ...)`
+- **Custom events** - Bridge between 3D Force Graph and XSLT
+- **Mode templates** - Event handler dispatch
 
-## Sample graph data
+## How It Works
 
-The test includes 6 nodes and 6 links representing:
-- 3 People (Alice, Bob, Charlie)
-- 1 Organization (Company A)
-- 1 Project (Project X)
-- 1 Document (Document 1)
+### RDF to Graph Conversion
 
-Relationships include `works_at`, `manages`, `contributes_to`, etc.
+The XSLT pipeline converts RDF/XML to the format expected by 3d-force-graph:
 
-## Next steps
+1. **Normalize RDF/XML** (`normalize-rdfxml.xsl`)
+   - Normalize syntax (striped/node-centric → node-centric only)
+   - Flatten blank nodes
+   - Resolve relative URIs to absolute
 
-To integrate with your RDF data:
+2. **Extract Nodes and Links** (`ldh:ForceGraph3D-convert-data` mode)
+   - Resources with `rdf:about` → nodes
+   - Properties with `rdf:resource` → links
+   - Node colors based on `rdf:type` (hashed from type URI)
+   - Labels from `foaf:name`, `rdfs:label`, `dct:title`, or URI fragment
 
-1. Replace `graphData` in `graph-client.js` with data from XSLT transformation
-2. Use XSLT to convert RDF to JSON format expected by 3d-force-graph
-3. Add more sophisticated event handlers (context menus, property panels, etc.)
-4. Implement node expansion (fetch related nodes on double-click)
+3. **Update Graph**
+   - Call `graph.graphData()` with JSON structure
+   - Graph re-renders with force simulation
 
 ## Troubleshooting
 
 ### SEF file not found
-Run `./generate-sef.sh` to compile the XSLT
+Run `./generate-sef.sh` to compile the XSLT to SEF format
 
 ### 3d-force-graph not loading
 Check browser console - CDN might be blocked. Download library locally if needed.
 
-### XSLT functions not being called
-- Check browser console for errors
-- Verify namespace in `SaxonJS.XPath.evaluate()` matches XSLT (`graph:`)
-- Make sure SEF file is up to date
+### CORS errors when loading RDF
+The remote server must send proper CORS headers:
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET`
+- `Access-Control-Allow-Headers: Accept`
 
-### CORS errors
-Must use HTTP server, not `file://` protocol
+For testing, you can use LinkedDataHub which has CORS enabled.
 
-## Browser compatibility
+### Fragment URIs cause errors
+Fragment identifiers (e.g., `http://example.org/data#Resource`) are automatically stripped before document loading. The fragment is used to look up the specific resource within the loaded document.
+
+### Empty or malformed RDF
+Check browser console for parsing errors. The document must be valid RDF/XML.
+
+## Browser Compatibility
 
 Tested on:
 - Chrome/Edge (recommended)
 - Firefox
 - Safari
 
-Requires WebGL support for 3D rendering.
+Requires:
+- WebGL support for 3D rendering
+- ES6+ JavaScript features
+- Fetch API
+
+## License
+
+This project uses:
+- SaxonJS - Mozilla Public License 2.0
+- 3d-force-graph - MIT License
