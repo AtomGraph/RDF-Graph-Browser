@@ -12,9 +12,22 @@
     <xsl:import href="normalize-rdfxml.xsl"/>
     <xsl:import href="3d-force-graph.xsl"/>
 
+    <!-- Global parameters -->
+    <xsl:param name="graph-id" select="'3d-graph'" as="xs:string"/> <!-- string: graph container element ID -->
+
+    <!-- Helper function to get the graphs object from window -->
+    <xsl:function name="local:get-graphs" as="item()">
+        <xsl:sequence select="ixsl:get(ixsl:window(), 'LinkedDataHub.graphs')"/>
+    </xsl:function>
+
+    <!-- Helper function to get graph state by ID -->
+    <xsl:function name="local:get-graph-state" as="item()">
+        <xsl:param name="graph-id" as="xs:string"/>
+        <xsl:sequence select="ixsl:get(local:get-graphs(), $graph-id)"/>
+    </xsl:function>
+
     <!-- Main template - runs on page load -->
     <xsl:template name="main">
-        <xsl:param name="graph-id" select="'3d-graph'" as="xs:string"/>
         <xsl:param name="document-uri" select="xs:anyURI('examples/example.rdf')" as="xs:anyURI"/>
         <xsl:param name="graph-width" select="800" as="xs:double"/>
         <xsl:param name="graph-height" select="600" as="xs:double"/>
@@ -97,11 +110,12 @@
 
         <xsl:message>Loading RDF data from <xsl:value-of select="$document-uri"/>...</xsl:message>
 
-        <!-- Create HTTP request with Accept header for RDF/XML -->
+        <!-- Create HTTP request with Accept header for RDF/XML and pool storage -->
         <xsl:variable name="request" select="map{
             'method': 'GET',
             'href': $document-uri,
-            'headers': map{ 'Accept': 'application/rdf+xml' }
+            'headers': map{ 'Accept': 'application/rdf+xml' },
+            'pool': 'xml'
         }" as="map(*)"/>
 
         <!-- Create context map to pass data through promise chain -->
@@ -136,9 +150,11 @@
             <xsl:message>Number of top-level children: <xsl:value-of select="count($rdf-doc/*/*)"/></xsl:message>
 
             <!-- Normalize RDF/XML (3 passes: normalize syntax, flatten structure, resolve URIs) -->
+            <!-- Strip fragment from base URI if present -->
+            <xsl:variable name="base-uri" select="if (contains($document-uri, '#')) then xs:anyURI(substring-before($document-uri, '#')) else $document-uri" as="xs:anyURI"/>
             <xsl:variable name="normalized-rdf" as="document-node()">
                 <xsl:apply-templates select="$rdf-doc">
-                    <xsl:with-param name="base-uri" select="$document-uri"/>
+                    <xsl:with-param name="base-uri" select="$base-uri"/>
                 </xsl:apply-templates>
             </xsl:variable>
 
@@ -173,8 +189,8 @@
     <xsl:function name="local:handle-load-error" ixsl:updating="yes">
         <xsl:param name="error" as="map(*)"/>
 
-        <xsl:message>Error loading RDF: <xsl:value-of select="serialize($error, map{'method': 'json'})"/></xsl:message>
-        <xsl:variable name="error-msg" select="if ($error?description) then $error?description else if ($error?message) then $error?message else serialize($error, map{'method': 'json'})" as="xs:string"/>
+        <xsl:variable name="error-msg" select="if ($error?description) then string($error?description) else if ($error?message) then string($error?message) else 'Unknown error'" as="xs:string"/>
+        <xsl:message>Error loading RDF: <xsl:value-of select="$error-msg"/></xsl:message>
         <xsl:sequence select="ixsl:call(ixsl:window(), 'alert', [ 'Error loading RDF: ' || $error-msg ])[current-date() lt xs:date('2000-01-01')]"/>
     </xsl:function>
 
@@ -200,16 +216,13 @@
         <xsl:choose>
             <xsl:when test="$uri-string castable as xs:anyURI and (starts-with($uri-string, 'http://') or starts-with($uri-string, 'https://'))">
                 <xsl:variable name="uri" select="xs:anyURI($uri-string)" as="xs:anyURI"/>
-                <xsl:variable name="graph-id" select="'3d-graph'" as="xs:string"/>
-                <xsl:variable name="graphs" select="ixsl:get(ixsl:window(), 'LinkedDataHub.graphs')"/>
-                <xsl:variable name="graph-state" select="ixsl:get($graphs, $graph-id)"/>
 
                 <xsl:message>Loading RDF from: <xsl:value-of select="$uri"/></xsl:message>
 
                 <xsl:call-template name="load-and-update-graph">
                     <xsl:with-param name="graph-id" select="$graph-id"/>
                     <xsl:with-param name="document-uri" select="$uri"/>
-                    <xsl:with-param name="graph-state" select="$graph-state"/>
+                    <xsl:with-param name="graph-state" select="local:get-graph-state($graph-id)"/>
                 </xsl:call-template>
             </xsl:when>
             <xsl:otherwise>
@@ -230,9 +243,8 @@
 
         <xsl:message>Reset camera button clicked</xsl:message>
 
-        <xsl:variable name="graph-id" select="'3d-graph'" as="xs:string"/>
-        <xsl:variable name="graphs" select="ixsl:get(ixsl:window(), 'LinkedDataHub.graphs')"/>
-        <xsl:variable name="graph-state" select="ixsl:get($graphs, $graph-id)"/>
+        <!-- Use global $graph-id parameter -->
+        <xsl:variable name="graph-state" select="local:get-graph-state($graph-id)"/>
 
         <xsl:if test="exists($graph-state)">
             <xsl:variable name="graph-instance" select="ixsl:get($graph-state, 'instance')"/>
@@ -290,6 +302,35 @@
                 </dl>
             </xsl:result-document>
         </xsl:for-each>
+    </xsl:template>
+
+    <xsl:template match="." mode="ixsl:onForceGraph3DNodeDblClick">
+        <xsl:variable name="event-detail" select="ixsl:get(ixsl:event(), 'detail')"/>
+        <xsl:variable name="node-id" select="ixsl:get($event-detail, 'nodeId')" as="xs:string"/>
+        <xsl:variable name="node-label" select="ixsl:get($event-detail, 'nodeLabel')" as="xs:string"/>
+
+        <xsl:message>Node double-clicked: <xsl:value-of select="$node-id"/> (<xsl:value-of select="$node-label"/>)</xsl:message>
+
+        <!-- Only load if node-id is a valid HTTP(S) URI -->
+        <xsl:if test="starts-with($node-id, 'http://') or starts-with($node-id, 'https://')">
+            <!-- Use global $graph-id parameter -->
+            <xsl:variable name="graph-state" select="local:get-graph-state($graph-id)"/>
+
+            <!-- Strip fragment from node-id to get document URI -->
+            <xsl:variable name="document-uri" select="if (contains($node-id, '#')) then substring-before($node-id, '#') else $node-id" as="xs:string"/>
+
+            <!-- Test: retrieve and serialize the node description -->
+            <xsl:variable name="description" select="key('resources', $node-id, doc($document-uri))"/>
+            <xsl:message>Description: <xsl:value-of select="serialize($description)"/></xsl:message>
+
+            <xsl:message>Loading RDF from double-clicked node: <xsl:value-of select="$document-uri"/></xsl:message>
+
+            <xsl:call-template name="load-and-update-graph">
+                <xsl:with-param name="graph-id" select="$graph-id"/>
+                <xsl:with-param name="document-uri" select="xs:anyURI($document-uri)"/>
+                <xsl:with-param name="graph-state" select="$graph-state"/>
+            </xsl:call-template>
+        </xsl:if>
     </xsl:template>
 
     <xsl:template match="." mode="ixsl:onForceGraph3DNodeRightClick">

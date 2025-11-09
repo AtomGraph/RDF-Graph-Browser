@@ -77,42 +77,35 @@
         <xsl:param name="link-force-distance" as="xs:double"/> <!-- number: target distance between linked nodes -->
         <xsl:param name="charge-force-strength" as="xs:double"/> <!-- number: node repulsion strength (negative) -->
 
-        <!-- Create JavaScript functions for graph configuration -->
-        <xsl:variable name="nodeLabel-fn" select="ixsl:eval('() => null')"/>
-        <xsl:variable name="nodeColor-fn" select="ixsl:eval('node => node.color')"/>
-
-        <!-- Create the graph instance -->
-        <xsl:variable name="graph" select="ixsl:apply($builder, [ $container ])" as="item()"/>
-
-        <!-- Configure graph -->
-        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeLabel', [ $nodeLabel-fn ])"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeColor', [ $nodeColor-fn ])"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeRelSize', [ $node-rel-size ])"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'linkWidth', [ $link-width ])"/>
-
-        <!-- Configure labels to be always visible -->
-        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeThreeObjectExtend', [ true() ])"/>
-        <xsl:variable name="nodeThreeObject-fn" select="ixsl:eval('node => {
-            const sprite = new SpriteText(node.label);
-            sprite.material.depthWrite = false;
-            sprite.color = ''' || $node-label-color || ''';
-            sprite.textHeight = ' || $node-label-text-height || ';
-            sprite.position.y = ' || $node-label-position-y || ';
-            return sprite;
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeThreeObject', [ $nodeThreeObject-fn ])"/>
-
-        <xsl:variable name="graph" select="ixsl:call($graph, 'linkThreeObjectExtend', [ true() ])"/>
-        <xsl:variable name="linkThreeObject-fn" select="ixsl:eval('link => {
-            const sprite = new SpriteText(link.label);
-            sprite.material.depthWrite = false;
-            sprite.color = ''' || $link-label-color || ''';
-            sprite.textHeight = ' || $link-label-text-height || ';
-            return sprite;
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'linkThreeObject', [ $linkThreeObject-fn ])"/>
-
-        <xsl:variable name="linkPositionUpdate-fn" select="ixsl:eval('(sprite, { start, end }) => {
+        <!-- Optional JavaScript function parameters - callers can override default behavior -->
+        <xsl:param name="nodeLabel-fn" select="ixsl:eval('() => null')" as="item()?"/> <!-- function: node label accessor -->
+        <xsl:param name="nodeColor-fn" select="ixsl:eval('node => node.color')" as="item()?"/> <!-- function: node color accessor -->
+        <xsl:param name="nodeThreeObject-fn" as="item()?"> <!-- function: custom Three.js object for nodes -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="node => {{
+                    const sprite = new SpriteText(node.label);
+                    sprite.material.depthWrite = false;
+                    sprite.color = '{$node-label-color}';
+                    sprite.textHeight = {$node-label-text-height};
+                    sprite.position.y = {$node-label-position-y};
+                    return sprite;
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="linkThreeObject-fn" as="item()?"> <!-- function: custom Three.js object for links -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="link => {{
+                    const sprite = new SpriteText(link.label);
+                    sprite.material.depthWrite = false;
+                    sprite.color = '{$link-label-color}';
+                    sprite.textHeight = {$link-label-text-height};
+                    return sprite;
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="linkPositionUpdate-fn" select="ixsl:eval('(sprite, { start, end }) => {
             if (!sprite) return;
             const middlePos = Object.assign({},
                 ...[''x'', ''y'', ''z''].map(c => ({
@@ -120,86 +113,143 @@
                 }))
             );
             Object.assign(sprite.position, middlePos);
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'linkPositionUpdate', [ $linkPositionUpdate-fn ])"/>
+        }')" as="item()?"/> <!-- function: link sprite position updater -->
+        <xsl:param name="onNodeClick-fn" as="item()?"> <!-- function: node click handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="node => {{
+                    var graphState = window.LinkedDataHub.graphs['{$graph-id}'];
+                    var now = new Date().getTime();
+                    var lastClick = graphState.lastNodeClickTime || 0;
+                    var timeDiff = now - lastClick;
+                    graphState.lastNodeClickTime = now;
+                    if (timeDiff > 0 &amp;&amp; timeDiff &lt; 500) {{
+                        var event = new CustomEvent('ForceGraph3DNodeDblClick', {{
+                            detail: {{
+                                canvasId: '{$graph-id}',
+                                nodeId: node.id,
+                                nodeLabel: node.label,
+                                nodeType: node.type
+                            }}
+                        }});
+                        document.dispatchEvent(event);
+                    }} else {{
+                        var event = new CustomEvent('ForceGraph3DNodeClick', {{
+                            detail: {{
+                                canvasId: '{$graph-id}',
+                                nodeId: node.id,
+                                nodeLabel: node.label,
+                                nodeType: node.type
+                            }}
+                        }});
+                        document.dispatchEvent(event);
+                    }}
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="onNodeRightClick-fn" as="item()?"> <!-- function: node right-click handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="node => {{
+                    let event = new CustomEvent('ForceGraph3DNodeRightClick', {{
+                        detail: {{
+                            canvasId: '{$graph-id}',
+                            nodeId: node.id,
+                            nodeLabel: node.label
+                        }}
+                    }});
+                    document.dispatchEvent(event);
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="onNodeHover-fn-factory" as="item()?"> <!-- function: creates node hover handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="(graphInstance) => {{
+                    return (node) => {{
+                        if (node) {{
+                            const screenCoords = graphInstance.graph2ScreenCoords(node.x, node.y, node.z);
+                            let event = new CustomEvent('ForceGraph3DNodeHoverOn', {{
+                                detail: {{
+                                    canvasId: '{$graph-id}',
+                                    nodeId: node.id,
+                                    nodeLabel: node.label,
+                                    nodeType: node.type,
+                                    screenX: screenCoords.x,
+                                    screenY: screenCoords.y
+                                }}
+                            }});
+                            document.dispatchEvent(event);
+                        }} else {{
+                            let event = new CustomEvent('ForceGraph3DNodeHoverOff', {{
+                                detail: {{
+                                    canvasId: '{$graph-id}'
+                                }}
+                            }});
+                            document.dispatchEvent(event);
+                        }}
+                    }};
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="onLinkClick-fn" as="item()?"> <!-- function: link click handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="link => {{
+                    let event = new CustomEvent('ForceGraph3DLinkClick', {{
+                        detail: {{
+                            canvasId: '{$graph-id}',
+                            sourceId: link.source.id,
+                            targetId: link.target.id,
+                            linkLabel: link.label
+                        }}
+                    }});
+                    document.dispatchEvent(event);
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
+        <xsl:param name="onBackgroundClick-fn" as="item()?"> <!-- function: background click handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <root statement="() => {{
+                    let event = new CustomEvent('ForceGraph3DBackgroundClick', {{
+                        detail: {{
+                            canvasId: '{$graph-id}'
+                        }}
+                    }});
+                    document.dispatchEvent(event);
+                }}"/>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+        </xsl:param>
 
-        <!-- Set up event handlers -->
-        <xsl:variable name="onNodeClick-fn" select="ixsl:eval('node => {
-            let event = new CustomEvent(''ForceGraph3DNodeClick'', {
-                detail: {
-                    canvasId: ''' || $graph-id || ''',
-                    nodeId: node.id,
-                    nodeLabel: node.label,
-                    nodeType: node.type
-                }
-            });
-            document.dispatchEvent(event);
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'onNodeClick', [ $onNodeClick-fn ], map{ 'convert-args': false() } )"/>
+        <!-- Create the graph instance -->
+        <xsl:variable name="graph" select="ixsl:apply($builder, [ $container ])" as="item()"/>
 
-        <xsl:variable name="onNodeRightClick-fn" select="ixsl:eval('node => {
-            let event = new CustomEvent(''ForceGraph3DNodeRightClick'', {
-                detail: {
-                    canvasId: ''' || $graph-id || ''',
-                    nodeId: node.id,
-                    nodeLabel: node.label
-                }
-            });
-            document.dispatchEvent(event);
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'onNodeRightClick', [ $onNodeRightClick-fn ], map{ 'convert-args': false() } )"/>
+        <!-- Configure graph -->
+        <xsl:variable name="graph" select="if (exists($nodeLabel-fn)) then ixsl:call($graph, 'nodeLabel', [ $nodeLabel-fn ]) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($nodeColor-fn)) then ixsl:call($graph, 'nodeColor', [ $nodeColor-fn ]) else $graph"/>
+        <xsl:variable name="graph" select="ixsl:call($graph, 'nodeRelSize', [ $node-rel-size ])"/>
+        <xsl:variable name="graph" select="ixsl:call($graph, 'linkWidth', [ $link-width ])"/>
+
+        <!-- Configure labels to be always visible -->
+        <xsl:variable name="graph" select="if (exists($nodeThreeObject-fn)) then ixsl:call($graph, 'nodeThreeObjectExtend', [ true() ]) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($nodeThreeObject-fn)) then ixsl:call($graph, 'nodeThreeObject', [ $nodeThreeObject-fn ]) else $graph"/>
+
+        <xsl:variable name="graph" select="if (exists($linkThreeObject-fn)) then ixsl:call($graph, 'linkThreeObjectExtend', [ true() ]) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($linkThreeObject-fn)) then ixsl:call($graph, 'linkThreeObject', [ $linkThreeObject-fn ]) else $graph"/>
+
+        <xsl:variable name="graph" select="if (exists($linkPositionUpdate-fn)) then ixsl:call($graph, 'linkPositionUpdate', [ $linkPositionUpdate-fn ]) else $graph"/>
+
+        <!-- Set up event handlers (only if provided) -->
+        <xsl:variable name="graph" select="if (exists($onNodeClick-fn)) then ixsl:call($graph, 'onNodeClick', [ $onNodeClick-fn ], map{ 'convert-args': false() }) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($onNodeRightClick-fn)) then ixsl:call($graph, 'onNodeRightClick', [ $onNodeRightClick-fn ], map{ 'convert-args': false() }) else $graph"/>
 
         <!-- Create hover handler with graph instance in closure -->
-        <xsl:variable name="onNodeHover-fn-factory" select="ixsl:eval('(graphInstance) => {
-            return (node) => {
-                if (node) {
-                    const screenCoords = graphInstance.graph2ScreenCoords(node.x, node.y, node.z);
-                    let event = new CustomEvent(''ForceGraph3DNodeHoverOn'', {
-                        detail: {
-                            canvasId: ''' || $graph-id || ''',
-                            nodeId: node.id,
-                            nodeLabel: node.label,
-                            nodeType: node.type,
-                            screenX: screenCoords.x,
-                            screenY: screenCoords.y
-                        }
-                    });
-                    document.dispatchEvent(event);
-                } else {
-                    let event = new CustomEvent(''ForceGraph3DNodeHoverOff'', {
-                        detail: {
-                            canvasId: ''' || $graph-id || '''
-                        }
-                    });
-                    document.dispatchEvent(event);
-                }
-            };
-        }')"/>
-        <xsl:variable name="onNodeHover-fn" select="ixsl:apply($onNodeHover-fn-factory, [ $graph ])"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'onNodeHover', [ $onNodeHover-fn ], map{ 'convert-args': false() } )"/>
+        <xsl:variable name="onNodeHover-fn" select="if (exists($onNodeHover-fn-factory)) then ixsl:apply($onNodeHover-fn-factory, [ $graph ]) else ()"/>
+        <xsl:variable name="graph" select="if (exists($onNodeHover-fn)) then ixsl:call($graph, 'onNodeHover', [ $onNodeHover-fn ], map{ 'convert-args': false() }) else $graph"/>
 
-        <xsl:variable name="onLinkClick-fn" select="ixsl:eval('link => {
-            let event = new CustomEvent(''ForceGraph3DLinkClick'', {
-                detail: {
-                    canvasId: ''' || $graph-id || ''',
-                    sourceId: link.source.id,
-                    targetId: link.target.id,
-                    linkLabel: link.label
-                }
-            });
-            document.dispatchEvent(event);
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'onLinkClick', [ $onLinkClick-fn ], map{ 'convert-args': false() } )"/>
-
-        <xsl:variable name="onBackgroundClick-fn" select="ixsl:eval('() => {
-            let event = new CustomEvent(''ForceGraph3DBackgroundClick'', {
-                detail: {
-                    canvasId: ''' || $graph-id || '''
-                }
-            });
-            document.dispatchEvent(event);
-        }')"/>
-        <xsl:variable name="graph" select="ixsl:call($graph, 'onBackgroundClick', [ $onBackgroundClick-fn ], map{ 'convert-args': false() } )"/>
+        <xsl:variable name="graph" select="if (exists($onLinkClick-fn)) then ixsl:call($graph, 'onLinkClick', [ $onLinkClick-fn ], map{ 'convert-args': false() }) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($onBackgroundClick-fn)) then ixsl:call($graph, 'onBackgroundClick', [ $onBackgroundClick-fn ], map{ 'convert-args': false() }) else $graph"/>
 
         <!-- Configure force simulation -->
         <xsl:variable name="link-force" select="ixsl:call($graph, 'd3Force', [ 'link' ])"/>
