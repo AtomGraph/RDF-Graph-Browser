@@ -76,6 +76,7 @@
                 <xsl:with-param name="link-label-text-height" select="$link-label-text-height"/>
                 <xsl:with-param name="link-force-distance" select="$link-force-distance"/>
                 <xsl:with-param name="charge-force-strength" select="$charge-force-strength"/>
+                <xsl:with-param name="cooldown-time" select="3000"/>
                 <xsl:with-param name="node-click-event-name" select="'ForceGraph3DNodeClick'"/>
                 <xsl:with-param name="node-dblclick-event-name" select="'ForceGraph3DNodeDblClick'"/>
                 <xsl:with-param name="node-rightclick-event-name" select="'ForceGraph3DNodeRightClick'"/>
@@ -107,6 +108,17 @@
             <xsl:with-param name="document-uri" select="$document-uri"/>
             <xsl:with-param name="graph-state" select="$graph-state"/>
         </xsl:call-template>
+    </xsl:template>
+
+    <!-- Zoom camera to fit all nodes in view -->
+    <xsl:template name="zoom-to-fit">
+        <xsl:param name="graph-state" as="item()" required="yes"/>
+        <xsl:param name="zoom-transition-duration" select="1000" as="xs:integer"/>
+        <xsl:param name="zoom-padding" select="20" as="xs:integer"/>
+
+        <xsl:variable name="graph-instance" select="ixsl:get($graph-state, 'instance')"/>
+        <xsl:sequence select="ixsl:call($graph-instance, 'zoomToFit', [ $zoom-transition-duration, $zoom-padding ])[current-date() lt xs:date('2000-01-01')]"/>
+        <xsl:message>Camera zoomed to fit all nodes</xsl:message>
     </xsl:template>
 
     <!-- Load RDF document and update graph -->
@@ -239,43 +251,20 @@
         </xsl:choose>
     </xsl:template>
 
-    <xsl:template match="button[@id = 'reset-camera']" mode="ixsl:onclick">
-        <xsl:param name="camera-position-x" select="0" as="xs:double"/>
-        <xsl:param name="camera-position-y" select="0" as="xs:double"/>
-        <xsl:param name="camera-position-z" select="300" as="xs:double"/>
-        <xsl:param name="camera-lookat-x" select="0" as="xs:double"/>
-        <xsl:param name="camera-lookat-y" select="0" as="xs:double"/>
-        <xsl:param name="camera-lookat-z" select="0" as="xs:double"/>
-        <xsl:param name="camera-transition-duration" select="1000" as="xs:integer"/>
+    <xsl:template match="button[@id = 'zoom-to-fit']" mode="ixsl:onclick">
+        <xsl:param name="zoom-transition-duration" select="1000" as="xs:integer"/>
+        <xsl:param name="zoom-padding" select="20" as="xs:integer"/>
 
-        <xsl:message>Reset camera button clicked</xsl:message>
+        <xsl:message>Zoom to fit button clicked</xsl:message>
 
         <!-- Use global $graph-id parameter -->
         <xsl:variable name="graph-state" select="local:get-graph-state($graph-id)"/>
 
-        <xsl:if test="exists($graph-state)">
-            <xsl:variable name="graph-instance" select="ixsl:get($graph-state, 'instance')"/>
-
-            <!-- Create JavaScript objects for position and lookAt -->
-            <xsl:variable name="new-position" select="ixsl:eval('({})')"/>
-            <xsl:for-each select="$new-position">
-                <ixsl:set-property name="x" select="$camera-position-x" object="."/>
-                <ixsl:set-property name="y" select="$camera-position-y" object="."/>
-                <ixsl:set-property name="z" select="$camera-position-z" object="."/>
-            </xsl:for-each>
-
-            <xsl:variable name="look-at" select="ixsl:eval('({})')"/>
-            <xsl:for-each select="$look-at">
-                <ixsl:set-property name="x" select="$camera-lookat-x" object="."/>
-                <ixsl:set-property name="y" select="$camera-lookat-y" object="."/>
-                <ixsl:set-property name="z" select="$camera-lookat-z" object="."/>
-            </xsl:for-each>
-
-            <!-- Call cameraPosition with position, lookAt, and duration -->
-            <xsl:sequence select="ixsl:call($graph-instance, 'cameraPosition', [ $new-position, $look-at, $camera-transition-duration ])[current-date() lt xs:date('2000-01-01')]"/>
-
-            <xsl:message>Camera reset to default position</xsl:message>
-        </xsl:if>
+        <xsl:call-template name="zoom-to-fit">
+            <xsl:with-param name="graph-state" select="$graph-state"/>
+            <xsl:with-param name="zoom-transition-duration" select="$zoom-transition-duration"/>
+            <xsl:with-param name="zoom-padding" select="$zoom-padding"/>
+        </xsl:call-template>
     </xsl:template>
 
     <!-- Graph event handlers -->

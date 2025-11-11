@@ -76,6 +76,8 @@
         <xsl:param name="link-label-text-height" as="xs:double"/> <!-- number: link label font size -->
         <xsl:param name="link-force-distance" as="xs:double"/> <!-- number: target distance between linked nodes -->
         <xsl:param name="charge-force-strength" as="xs:double"/> <!-- number: node repulsion strength (negative) -->
+        <xsl:param name="cooldown-time" as="xs:double?"/> <!-- number: milliseconds to render before stopping engine (optional) -->
+        <xsl:param name="cooldown-ticks" as="xs:double?"/> <!-- number: frames to render before stopping engine (optional) -->
 
         <!-- CustomEvent names for graph interactions -->
         <xsl:param name="node-click-event-name" as="xs:string"/> <!-- string: event name for node single-click -->
@@ -85,6 +87,7 @@
         <xsl:param name="node-hover-off-event-name" as="xs:string"/> <!-- string: event name for node hover end -->
         <xsl:param name="link-click-event-name" as="xs:string"/> <!-- string: event name for link click -->
         <xsl:param name="background-click-event-name" as="xs:string"/> <!-- string: event name for background click -->
+        <xsl:param name="engine-stop-event-name" as="xs:string?"/> <!-- string: event name for engine stop (optional) -->
 
         <!-- Optional JavaScript function parameters - callers can override default behavior -->
         <xsl:param name="nodeLabel-fn" select="ixsl:eval('() => null')" as="item()?"/> <!-- function: node label accessor -->
@@ -123,6 +126,21 @@
             );
             Object.assign(sprite.position, middlePos);
         }')" as="item()?"/> <!-- function: link sprite position updater -->
+        <xsl:param name="onEngineStop-fn" as="item()?"> <!-- function: engine stop handler -->
+            <xsl:if test="exists($engine-stop-event-name)">
+                <xsl:variable name="js-statement" as="element()">
+                    <root statement="() => {{
+                        let event = new CustomEvent('{$engine-stop-event-name}', {{
+                            detail: {{
+                                canvasId: '{$graph-id}'
+                            }}
+                        }});
+                        document.dispatchEvent(event);
+                    }}"/>
+                </xsl:variable>
+                <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
+            </xsl:if>
+        </xsl:param>
         <xsl:param name="onNodeClick-fn" as="item()?"> <!-- function: node click handler -->
             <xsl:variable name="js-statement" as="element()">
                 <root statement="node => {{
@@ -240,6 +258,10 @@
         <xsl:variable name="graph" select="ixsl:call($graph, 'nodeRelSize', [ $node-rel-size ])"/>
         <xsl:variable name="graph" select="ixsl:call($graph, 'linkWidth', [ $link-width ])"/>
 
+        <!-- Configure cooldown behavior (optional) -->
+        <xsl:variable name="graph" select="if (exists($cooldown-time)) then ixsl:call($graph, 'cooldownTime', [ $cooldown-time ]) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($cooldown-ticks)) then ixsl:call($graph, 'cooldownTicks', [ $cooldown-ticks ]) else $graph"/>
+
         <!-- Configure labels to be always visible -->
         <xsl:variable name="graph" select="if (exists($nodeThreeObject-fn)) then ixsl:call($graph, 'nodeThreeObjectExtend', [ true() ]) else $graph"/>
         <xsl:variable name="graph" select="if (exists($nodeThreeObject-fn)) then ixsl:call($graph, 'nodeThreeObject', [ $nodeThreeObject-fn ]) else $graph"/>
@@ -259,6 +281,7 @@
 
         <xsl:variable name="graph" select="if (exists($onLinkClick-fn)) then ixsl:call($graph, 'onLinkClick', [ $onLinkClick-fn ], map{ 'convert-args': false() }) else $graph"/>
         <xsl:variable name="graph" select="if (exists($onBackgroundClick-fn)) then ixsl:call($graph, 'onBackgroundClick', [ $onBackgroundClick-fn ], map{ 'convert-args': false() }) else $graph"/>
+        <xsl:variable name="graph" select="if (exists($onEngineStop-fn)) then ixsl:call($graph, 'onEngineStop', [ $onEngineStop-fn ]) else $graph"/>
 
         <!-- Configure force simulation -->
         <xsl:variable name="link-force" select="ixsl:call($graph, 'd3Force', [ 'link' ])"/>
