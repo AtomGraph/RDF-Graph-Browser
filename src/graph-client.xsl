@@ -76,6 +76,13 @@
                 <xsl:with-param name="link-label-text-height" select="$link-label-text-height"/>
                 <xsl:with-param name="link-force-distance" select="$link-force-distance"/>
                 <xsl:with-param name="charge-force-strength" select="$charge-force-strength"/>
+                <xsl:with-param name="node-click-event-name" select="'ForceGraph3DNodeClick'"/>
+                <xsl:with-param name="node-dblclick-event-name" select="'ForceGraph3DNodeDblClick'"/>
+                <xsl:with-param name="node-rightclick-event-name" select="'ForceGraph3DNodeRightClick'"/>
+                <xsl:with-param name="node-hover-on-event-name" select="'ForceGraph3DNodeHoverOn'"/>
+                <xsl:with-param name="node-hover-off-event-name" select="'ForceGraph3DNodeHoverOff'"/>
+                <xsl:with-param name="link-click-event-name" select="'ForceGraph3DLinkClick'"/>
+                <xsl:with-param name="background-click-event-name" select="'ForceGraph3DBackgroundClick'"/>
             </xsl:call-template>
         </xsl:variable>
 

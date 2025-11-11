@@ -77,6 +77,15 @@
         <xsl:param name="link-force-distance" as="xs:double"/> <!-- number: target distance between linked nodes -->
         <xsl:param name="charge-force-strength" as="xs:double"/> <!-- number: node repulsion strength (negative) -->
 
+        <!-- CustomEvent names for graph interactions -->
+        <xsl:param name="node-click-event-name" as="xs:string"/> <!-- string: event name for node single-click -->
+        <xsl:param name="node-dblclick-event-name" as="xs:string"/> <!-- string: event name for node double-click -->
+        <xsl:param name="node-rightclick-event-name" as="xs:string"/> <!-- string: event name for node right-click -->
+        <xsl:param name="node-hover-on-event-name" as="xs:string"/> <!-- string: event name for node hover start -->
+        <xsl:param name="node-hover-off-event-name" as="xs:string"/> <!-- string: event name for node hover end -->
+        <xsl:param name="link-click-event-name" as="xs:string"/> <!-- string: event name for link click -->
+        <xsl:param name="background-click-event-name" as="xs:string"/> <!-- string: event name for background click -->
+
         <!-- Optional JavaScript function parameters - callers can override default behavior -->
         <xsl:param name="nodeLabel-fn" select="ixsl:eval('() => null')" as="item()?"/> <!-- function: node label accessor -->
         <xsl:param name="nodeColor-fn" select="ixsl:eval('node => node.color')" as="item()?"/> <!-- function: node color accessor -->
@@ -123,7 +132,7 @@
                     var timeDiff = now - lastClick;
                     graphState.lastNodeClickTime = now;
                     if (timeDiff > 0 &amp;&amp; timeDiff &lt; 500) {{
-                        var event = new CustomEvent('ForceGraph3DNodeDblClick', {{
+                        var event = new CustomEvent('{$node-dblclick-event-name}', {{
                             detail: {{
                                 canvasId: '{$graph-id}',
                                 nodeId: node.id,
@@ -133,7 +142,7 @@
                         }});
                         document.dispatchEvent(event);
                     }} else {{
-                        var event = new CustomEvent('ForceGraph3DNodeClick', {{
+                        var event = new CustomEvent('{$node-click-event-name}', {{
                             detail: {{
                                 canvasId: '{$graph-id}',
                                 nodeId: node.id,
@@ -150,7 +159,7 @@
         <xsl:param name="onNodeRightClick-fn" as="item()?"> <!-- function: node right-click handler -->
             <xsl:variable name="js-statement" as="element()">
                 <root statement="node => {{
-                    let event = new CustomEvent('ForceGraph3DNodeRightClick', {{
+                    let event = new CustomEvent('{$node-rightclick-event-name}', {{
                         detail: {{
                             canvasId: '{$graph-id}',
                             nodeId: node.id,
@@ -168,7 +177,7 @@
                     return (node) => {{
                         if (node) {{
                             const screenCoords = graphInstance.graph2ScreenCoords(node.x, node.y, node.z);
-                            let event = new CustomEvent('ForceGraph3DNodeHoverOn', {{
+                            let event = new CustomEvent('{$node-hover-on-event-name}', {{
                                 detail: {{
                                     canvasId: '{$graph-id}',
                                     nodeId: node.id,
@@ -180,7 +189,7 @@
                             }});
                             document.dispatchEvent(event);
                         }} else {{
-                            let event = new CustomEvent('ForceGraph3DNodeHoverOff', {{
+                            let event = new CustomEvent('{$node-hover-off-event-name}', {{
                                 detail: {{
                                     canvasId: '{$graph-id}'
                                 }}
@@ -195,7 +204,7 @@
         <xsl:param name="onLinkClick-fn" as="item()?"> <!-- function: link click handler -->
             <xsl:variable name="js-statement" as="element()">
                 <root statement="link => {{
-                    let event = new CustomEvent('ForceGraph3DLinkClick', {{
+                    let event = new CustomEvent('{$link-click-event-name}', {{
                         detail: {{
                             canvasId: '{$graph-id}',
                             sourceId: link.source.id,
@@ -211,7 +220,7 @@
         <xsl:param name="onBackgroundClick-fn" as="item()?"> <!-- function: background click handler -->
             <xsl:variable name="js-statement" as="element()">
                 <root statement="() => {{
-                    let event = new CustomEvent('ForceGraph3DBackgroundClick', {{
+                    let event = new CustomEvent('{$background-click-event-name}', {{
                         detail: {{
                             canvasId: '{$graph-id}'
                         }}
