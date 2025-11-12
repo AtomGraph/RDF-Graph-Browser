@@ -46,22 +46,32 @@ This application is unique: all logic lives in XSLT, not JavaScript. The archite
    - Compiled XSLT (`dist/graph-client.xsl.sef.json`)
 
 2. **src/graph-client.xsl** - Main XSLT stylesheet that:
-   - Initializes the 3D force graph on page load
+   - Initializes the 3D force graph on page load with LinkedDataHub demo SKOS concept
    - Handles all UI events (clicks, double-clicks, hovers)
-   - Loads RDF documents via HTTP
+   - Loads RDF documents via HTTP through CORS proxy (corsproxy.io)
+   - Maintains merged global RDF document and loaded-uris tracking array
+   - Expands stub nodes on double-click (creates minimal descriptions for unloaded resources)
    - Manipulates the DOM
-   - Imports the other two stylesheets
+   - Imports the other three stylesheets
 
 3. **src/3d-force-graph.xsl** - 3D graph initialization and configuration:
    - Creates the ForceGraph3D instance
    - Sets up node/link rendering (colors, labels, Three.js objects)
    - Registers JavaScript event handlers that dispatch CustomEvents back to XSLT
    - Converts RDF/XML to graph JSON format
+   - Deterministic node colors hashed from rdf:type URIs
 
 4. **src/normalize-rdfxml.xsl** - RDF/XML normalization pipeline:
    - Three-pass normalization: syntax → flattening → URI resolution
    - Converts all RDF syntax variants to canonical form
    - Resolves relative URIs to absolute URIs
+
+5. **src/merge-rdfxml.xsl** - RDF document merging:
+   - Merges new RDF descriptions into existing global document
+   - Adds new resources and properties to existing resources
+   - Uses ldh:MergeRDF mode templates
+
+6. **styles.css** - External stylesheet for UI components
 
 ### Event Flow
 
@@ -81,14 +91,26 @@ XSLT calls graph.graphData() to update visualization
 
 ### RDF Loading and Graph Updates
 
-When a URI is loaded (on page load or via double-click):
+When a URI is loaded (on page load, via UI input, or double-click):
 
 1. XSLT template `load-and-update-graph` is called with a document URI
-2. Uses `ixsl:http-request()` with `'pool': 'xml'` to fetch and cache RDF/XML
-3. RDF goes through 3-pass normalization (normalize-rdfxml.xsl)
-4. Normalized RDF is converted to graph JSON using `ldh:ForceGraph3D-convert-data` mode templates
-5. Graph data structure: `{ nodes: [{id, label, color, ...}], links: [{source, target, label, ...}] }`
-6. XSLT calls `graph.graphData(newData)` to update the 3D visualization
+2. URI is wrapped with CORS proxy: `https://corsproxy.io/?url=<encoded-uri>`
+3. Uses `ixsl:http-request()` with `'pool': 'xml'` to fetch and cache RDF/XML
+4. RDF goes through 3-pass normalization (normalize-rdfxml.xsl)
+5. Document URI is added to `window.LinkedDataHub.loaded-uris` array (tracks HTTP-loaded resources)
+6. Normalized RDF is merged into global `window.LinkedDataHub.document` (merge-rdfxml.xsl)
+7. Merged document is converted to graph JSON using `ldh:ForceGraph3D-convert-data` mode templates
+8. Graph data structure: `{ nodes: [{id, label, color, ...}], links: [{source, target, label, ...}] }`
+9. XSLT calls `graph.graphData(newData)` to completely replace the visualization
+
+### Stub Node Expansion
+
+When double-clicking a node that was HTTP-loaded (its URI is in `loaded-uris`):
+
+1. Find unresolved object URIs from the node's properties (URIs not in current document)
+2. Create minimal stub descriptions: `<rdf:Description rdf:about="uri"><rdfs:label>fragment</rdfs:label></rdf:Description>`
+3. Merge stubs into global document and update visualization
+4. Stub nodes appear in gray - double-clicking them loads real data via HTTP
 
 ### Key XSLT/IXSL Features
 
@@ -106,10 +128,14 @@ This codebase heavily uses SaxonJS interactive XSLT features:
 
 ### State Management
 
-Graph state is stored in `window.LinkedDataHub.graphs[graph-id]` and contains:
-- `graph` - The ForceGraph3D instance
-- `currentDocumentURI` - URI of currently loaded RDF document
-- `resources` - Cached RDF document (optional)
+Application state is stored in `window.LinkedDataHub`:
+
+**Graph instances** (`window.LinkedDataHub.graphs[graph-id]`):
+- `instance` - The ForceGraph3D instance
+
+**Global RDF state** (`window.LinkedDataHub`):
+- `document` - Merged RDF document containing all loaded data
+- `loaded-uris` - JavaScript Array of URIs loaded via HTTP (distinguishes real resources from stubs)
 
 Access via helper functions in graph-client.xsl:
 - `local:get-graphs()` - Returns the graphs object
@@ -174,13 +200,14 @@ The SaxonJS transform uses `logLevel: 10` for verbose logging.
 
 ## Testing with Sample Data
 
-The `examples/` directory contains sample RDF files. To test with different RDF:
+The application loads `https://linkeddatahub.com/demo/skos/concepts/concept17128/` by default.
 
-1. Add an `.rdf` file to `examples/`
-2. Change the `document-uri` parameter in the `main` template in `src/graph-client.xsl`
-3. Recompile and refresh
+To test with different RDF:
 
-Or enter any HTTP(S) URL in the UI input field. The remote server must send CORS headers.
+1. Change the `document-uri` parameter in the `main` template in `src/graph-client.xsl`
+2. Recompile with `./generate-sef.sh` and refresh
+
+Or enter any HTTP(S) URL in the UI input field. All URLs are automatically proxied through `https://corsproxy.io/?url=` to handle CORS.
 
 ## Common Patterns
 

@@ -1,9 +1,11 @@
-# RDF Graph Browser
+# 3D Linked Data
 
 A browser-based RDF graph visualization tool that combines:
 - **3d-force-graph** - 3D force-directed graph visualization using WebGL/three.js
 - **SaxonJS 3.0** - Client-side XSLT 3.0 processor
-- **RDF/XML** - Semantic web data format
+- **RDF/XML** - Semantic Web data format
+
+> **⚠️ Important Limitation:** Currently, only documents that return `application/rdf+xml` content type can be loaded. Other RDF formats (Turtle, JSON-LD, N-Triples) are not yet supported.
 
 ## Features
 
@@ -16,19 +18,19 @@ A browser-based RDF graph visualization tool that combines:
 ## Project Structure
 
 ```
-RDF-Graph-Browser/
+3D-Linked-Data/
 ├── index.html              # Main HTML page
+├── styles.css              # External stylesheet
 ├── generate-sef.sh         # Script to compile XSLT to SEF
 ├── lib/                    # External libraries
 │   └── SaxonJS3.js        # SaxonJS 3.0 library
 ├── src/                    # XSLT source files
 │   ├── graph-client.xsl   # Main XSLT client with event handlers
 │   ├── 3d-force-graph.xsl # 3D Force Graph initialization
-│   └── normalize-rdfxml.xsl # RDF/XML normalization
-├── dist/                   # Compiled output
-│   └── graph-client.xsl.sef.json # Compiled SEF for SaxonJS
-└── examples/               # Sample RDF data
-    └── example.rdf        # Example RDF document
+│   ├── normalize-rdfxml.xsl # RDF/XML normalization
+│   └── merge-rdfxml.xsl   # RDF document merging
+└── dist/                   # Compiled output
+    └── graph-client.xsl.sef.json # Compiled SEF for SaxonJS
 ```
 
 ## Dependencies
@@ -64,15 +66,16 @@ If you modify the XSLT, regenerate the SEF file:
 
 ### Loading RDF Documents
 
-1. **Default**: On page load, `examples/example.rdf` is loaded automatically
-2. **Custom URL**: Enter any HTTP(S) URL in the input field and click "Go" or press Enter
-3. **Navigate**: Double-click any node with an HTTP(S) URI to load that resource
+1. **Default**: On page load, `https://linkeddatahub.com/demo/skos/concepts/concept17128/` is loaded automatically via CORS proxy
+2. **Custom URL**: Enter any HTTP(S) URL in the input field and click "Go" or press Enter (automatically proxied)
+3. **Navigate**: Double-click any HTTP(S) node to either:
+   - Load that resource via HTTP (if not already loaded)
+   - Expand its linked resources as stub nodes (if already loaded)
 
 ### Interactive Features
 
 - **Single-click node** - View resource details in info panel
 - **Double-click node** - Load and visualize that node's RDF document
-- **Right-click node** - Context menu (future feature)
 - **Hover node** - Show tooltip with node label and type
 - **Drag node** - Reposition nodes in 3D space
 - **Rotate view** - Click and drag background to rotate
@@ -91,50 +94,32 @@ All events and operations are logged to the browser console using `<xsl:message>
 
 ### XSLT-Driven Design
 
-All application logic is implemented in XSLT 3.0 running in the browser via SaxonJS:
+Unlike typical web applications where JavaScript handles all logic, this application uses XSLT 3.0 for everything:
 
-```
-┌─────────────────────────────────────────────────┐
-│              Browser Window                     │
-│                                                 │
-│  ┌──────────────┐         ┌─────────────────┐ │
-│  │   WebGL      │         │   HTML/DOM      │ │
-│  │   Canvas     │◄────────┤   UI Elements   │ │
-│  │ (3D graph)   │         │   Info Panel    │ │
-│  └──────────────┘         └─────────────────┘ │
-│         ▲                          ▲           │
-│         │                          │           │
-│         │  ┌────────────────────────────────┐ │
-│         └──┤   SaxonJS XSLT 3.0 Processor   │ │
-│            │                                │ │
-│            │  • graph-client.xsl            │ │
-│            │    - Event handlers            │ │
-│            │    - RDF loading               │ │
-│            │    - DOM manipulation          │ │
-│            │                                │ │
-│            │  • 3d-force-graph.xsl          │ │
-│            │    - Graph initialization      │ │
-│            │    - Event bridge via          │ │
-│            │      CustomEvents              │ │
-│            │                                │ │
-│            │  • normalize-rdfxml.xsl        │ │
-│            │    - RDF/XML normalization     │ │
-│            │    - URI resolution            │ │
-│            └────────────────────────────────┘ │
-│                          ▲                     │
-│                          │                     │
-│                  ┌───────────────┐            │
-│                  │  HTTP Fetch   │            │
-│                  │  RDF/XML docs │            │
-│                  │  (with CORS)  │            │
-│                  └───────────────┘            │
-└─────────────────────────────────────────────────┘
-```
+**What XSLT does (not JavaScript):**
+- Loads RDF documents via HTTP
+- Parses and normalizes RDF/XML
+- Merges RDF data from multiple sources
+- Handles UI events (clicks, double-clicks, hovers)
+- Updates the DOM (info panel, tooltips)
+- Converts RDF to graph visualization data
+- Controls the 3D Force Graph
+
+**How it works:**
+- XSLT source files in `src/` are compiled to SEF format by `generate-sef.sh`
+- SaxonJS loads the pre-compiled SEF and executes XSLT in the browser
+- XSLT uses SaxonJS interactive extensions (`ixsl:*`) to interact with JavaScript, DOM, and HTTP APIs
+
+**Why this approach:**
+- Declarative programming model for semantic data processing
+- Built-in RDF/XML handling without parsing libraries
+- Pattern matching via templates and modes
+- XPath 3.1 for querying RDF structures
 
 ### Event Flow
 
 1. **Page Load**
-   - SaxonJS loads and compiles SEF
+   - SaxonJS loads pre-compiled SEF file
    - XSLT `main` template initializes 3D Force Graph
    - Default RDF document is loaded via `ixsl:http-request()`
 
@@ -187,35 +172,6 @@ The XSLT pipeline converts RDF/XML to the format expected by 3d-force-graph:
 
 ### SEF file not found
 Run `./generate-sef.sh` to compile the XSLT to SEF format
-
-### 3d-force-graph not loading
-Check browser console - CDN might be blocked. Download library locally if needed.
-
-### CORS errors when loading RDF
-The remote server must send proper CORS headers:
-- `Access-Control-Allow-Origin: *`
-- `Access-Control-Allow-Methods: GET`
-- `Access-Control-Allow-Headers: Accept`
-
-For testing, you can use LinkedDataHub which has CORS enabled.
-
-### Fragment URIs cause errors
-Fragment identifiers (e.g., `http://example.org/data#Resource`) are automatically stripped before document loading. The fragment is used to look up the specific resource within the loaded document.
-
-### Empty or malformed RDF
-Check browser console for parsing errors. The document must be valid RDF/XML.
-
-## Browser Compatibility
-
-Tested on:
-- Chrome/Edge (recommended)
-- Firefox
-- Safari
-
-Requires:
-- WebGL support for 3D rendering
-- ES6+ JavaScript features
-- Fetch API
 
 ## License
 
