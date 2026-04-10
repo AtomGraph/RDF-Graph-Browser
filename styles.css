@@ -172,3 +172,48 @@ button:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.3);
 }
+
+.show-panel {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    background: rgba(20, 20, 20, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+}
+
+.show-panel strong {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.show-panel label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.show-panel input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.show-panel .sub-option {
+    flex-basis: 100%;
+    margin-left: 22px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+}

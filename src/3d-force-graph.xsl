@@ -408,16 +408,19 @@
     </xsl:template>
 
     <!-- Level 4a: @rdf:resource not described → URI-only node -->
-    <xsl:template match="@rdf:resource[not(key('resources', .))]" mode="ldh:ForceGraph3D-nodes" as="item()">
-        <xsl:variable name="uri" select="xs:anyURI(.)" as="xs:anyURI"/>
-        <xsl:variable name="node" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$node">
-            <ixsl:set-property name="id" select="$uri" object="."/>
-            <ixsl:set-property name="label" select="$uri" object="."/>
-            <ixsl:set-property name="nodeType" select="'uri'" object="."/>
-            <ixsl:set-property name="color" select="'#7f8c8d'" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$node"/>
+    <xsl:template match="@rdf:resource[not(key('resources', .))]" mode="ldh:ForceGraph3D-nodes" as="item()?">
+        <xsl:param name="show-stubs" select="true()" tunnel="yes" as="xs:boolean"/>
+        <xsl:if test="$show-stubs">
+            <xsl:variable name="uri" select="xs:anyURI(.)" as="xs:anyURI"/>
+            <xsl:variable name="node" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$node">
+                <ixsl:set-property name="id" select="$uri" object="."/>
+                <ixsl:set-property name="label" select="$uri" object="."/>
+                <ixsl:set-property name="nodeType" select="'uri'" object="."/>
+                <ixsl:set-property name="color" select="'#7f8c8d'" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$node"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Level 4a: @rdf:resource already described → suppress (node already emitted at level 2) -->
@@ -427,39 +430,46 @@
     <xsl:template match="@rdf:nodeID" mode="ldh:ForceGraph3D-nodes"/>
 
     <!-- Level 4c: non-empty text node → literal node -->
-    <xsl:template match="text()[normalize-space(.) != '']" mode="ldh:ForceGraph3D-nodes" as="item()">
-        <xsl:variable name="node-id" select="generate-id(.)" as="xs:string"/>
-        <xsl:variable name="literal-value" select="normalize-space(.)" as="xs:string"/>
-        <xsl:variable name="display-label" as="xs:string"
-            select="if (string-length($literal-value) gt $ldh:literal-label-max-length)
-                    then substring($literal-value, 1, $ldh:literal-label-max-length) || '…'
-                    else $literal-value"/>
-        <xsl:variable name="node" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$node">
-            <ixsl:set-property name="id" select="$node-id" object="."/>
-            <ixsl:set-property name="label" select="$display-label" object="."/>
-            <ixsl:set-property name="nodeType" select="'literal'" object="."/>
-            <ixsl:set-property name="color" select="'#e8d5a3'" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$node"/>
+    <xsl:template match="text()[normalize-space(.) != '']" mode="ldh:ForceGraph3D-nodes" as="item()?">
+        <xsl:param name="show-literals" select="true()" tunnel="yes" as="xs:boolean"/>
+        <xsl:param name="locale-filter" select="()" tunnel="yes" as="xs:string?"/>
+        <xsl:if test="$show-literals and (empty($locale-filter) or not(parent::*/@xml:lang) or lang($locale-filter))">
+            <xsl:variable name="node-id" select="generate-id(.)" as="xs:string"/>
+            <xsl:variable name="literal-value" select="normalize-space(.)" as="xs:string"/>
+            <xsl:variable name="display-label" as="xs:string"
+                select="if (string-length($literal-value) gt $ldh:literal-label-max-length)
+                        then substring($literal-value, 1, $ldh:literal-label-max-length) || '…'
+                        else $literal-value"/>
+            <xsl:variable name="node" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$node">
+                <ixsl:set-property name="id" select="$node-id" object="."/>
+                <ixsl:set-property name="label" select="$display-label" object="."/>
+                <ixsl:set-property name="nodeType" select="'literal'" object="."/>
+                <ixsl:set-property name="color" select="'#e8d5a3'" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$node"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Level 4d: XMLLiteral embedded element → literal-like node -->
-    <xsl:template match="rdf:Description/*/*" mode="ldh:ForceGraph3D-nodes" as="item()">
-        <xsl:variable name="node-id" select="generate-id(.)" as="xs:string"/>
-        <xsl:variable name="literal-value" select="normalize-space(string(.))" as="xs:string"/>
-        <xsl:variable name="display-label" as="xs:string"
-            select="if (string-length($literal-value) gt $ldh:literal-label-max-length)
-                    then substring($literal-value, 1, $ldh:literal-label-max-length) || '…'
-                    else $literal-value"/>
-        <xsl:variable name="node" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$node">
-            <ixsl:set-property name="id" select="$node-id" object="."/>
-            <ixsl:set-property name="label" select="$display-label" object="."/>
-            <ixsl:set-property name="nodeType" select="'literal'" object="."/>
-            <ixsl:set-property name="color" select="'#e8d5a3'" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$node"/>
+    <xsl:template match="rdf:Description/*/*" mode="ldh:ForceGraph3D-nodes" as="item()?">
+        <xsl:param name="show-literals" select="true()" tunnel="yes" as="xs:boolean"/>
+        <xsl:if test="$show-literals">
+            <xsl:variable name="node-id" select="generate-id(.)" as="xs:string"/>
+            <xsl:variable name="literal-value" select="normalize-space(string(.))" as="xs:string"/>
+            <xsl:variable name="display-label" as="xs:string"
+                select="if (string-length($literal-value) gt $ldh:literal-label-max-length)
+                        then substring($literal-value, 1, $ldh:literal-label-max-length) || '…'
+                        else $literal-value"/>
+            <xsl:variable name="node" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$node">
+                <ixsl:set-property name="id" select="$node-id" object="."/>
+                <ixsl:set-property name="label" select="$display-label" object="."/>
+                <ixsl:set-property name="nodeType" select="'literal'" object="."/>
+                <ixsl:set-property name="color" select="'#e8d5a3'" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$node"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Suppress whitespace-only text nodes in nodes mode -->
@@ -492,18 +502,21 @@
     </xsl:template>
 
     <!-- Level 4a: @rdf:resource → link to URI (described or URI-only) -->
-    <xsl:template match="@rdf:resource" mode="ldh:ForceGraph3D-links" as="item()">
+    <xsl:template match="@rdf:resource" mode="ldh:ForceGraph3D-links" as="item()?">
         <xsl:param name="source-id" as="xs:anyURI"/>
         <xsl:param name="link-label" as="xs:string"/>
-        <xsl:variable name="target-id" select="xs:anyURI(.)" as="xs:anyURI"/>
-
-        <xsl:variable name="link" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$link">
-            <ixsl:set-property name="source" select="$source-id" object="."/>
-            <ixsl:set-property name="target" select="$target-id" object="."/>
-            <ixsl:set-property name="label" select="$link-label" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$link"/>
+        <xsl:param name="show-stubs" select="true()" tunnel="yes" as="xs:boolean"/>
+        <!-- Suppress link if target is a stub and stubs are hidden -->
+        <xsl:if test="$show-stubs or exists(key('resources', .))">
+            <xsl:variable name="target-id" select="xs:anyURI(.)" as="xs:anyURI"/>
+            <xsl:variable name="link" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$link">
+                <ixsl:set-property name="source" select="$source-id" object="."/>
+                <ixsl:set-property name="target" select="$target-id" object="."/>
+                <ixsl:set-property name="label" select="$link-label" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$link"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Level 4b: @rdf:nodeID → link to blank node -->
@@ -522,33 +535,38 @@
     </xsl:template>
 
     <!-- Level 4c: non-empty text → literal link -->
-    <xsl:template match="text()[normalize-space(.) != '']" mode="ldh:ForceGraph3D-links" as="item()">
+    <xsl:template match="text()[normalize-space(.) != '']" mode="ldh:ForceGraph3D-links" as="item()?">
         <xsl:param name="source-id" as="xs:anyURI"/>
         <xsl:param name="link-label" as="xs:string"/>
-        <xsl:variable name="target-id" select="generate-id(.)" as="xs:string"/>
-
-        <xsl:variable name="link" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$link">
-            <ixsl:set-property name="source" select="$source-id" object="."/>
-            <ixsl:set-property name="target" select="$target-id" object="."/>
-            <ixsl:set-property name="label" select="$link-label" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$link"/>
+        <xsl:param name="show-literals" select="true()" tunnel="yes" as="xs:boolean"/>
+        <xsl:param name="locale-filter" select="()" tunnel="yes" as="xs:string?"/>
+        <xsl:if test="$show-literals and (empty($locale-filter) or not(parent::*/@xml:lang) or lang($locale-filter))">
+            <xsl:variable name="target-id" select="generate-id(.)" as="xs:string"/>
+            <xsl:variable name="link" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$link">
+                <ixsl:set-property name="source" select="$source-id" object="."/>
+                <ixsl:set-property name="target" select="$target-id" object="."/>
+                <ixsl:set-property name="label" select="$link-label" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$link"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Level 4d: XMLLiteral embedded element → link to XMLLiteral node -->
-    <xsl:template match="rdf:Description/*/*" mode="ldh:ForceGraph3D-links" as="item()">
+    <xsl:template match="rdf:Description/*/*" mode="ldh:ForceGraph3D-links" as="item()?">
         <xsl:param name="source-id" as="xs:anyURI"/>
         <xsl:param name="link-label" as="xs:string"/>
-        <xsl:variable name="target-id" select="generate-id(.)" as="xs:string"/>
-
-        <xsl:variable name="link" select="ixsl:eval('{}')"/>
-        <xsl:for-each select="$link">
-            <ixsl:set-property name="source" select="$source-id" object="."/>
-            <ixsl:set-property name="target" select="$target-id" object="."/>
-            <ixsl:set-property name="label" select="$link-label" object="."/>
-        </xsl:for-each>
-        <xsl:sequence select="$link"/>
+        <xsl:param name="show-literals" select="true()" tunnel="yes" as="xs:boolean"/>
+        <xsl:if test="$show-literals">
+            <xsl:variable name="target-id" select="generate-id(.)" as="xs:string"/>
+            <xsl:variable name="link" select="ixsl:eval('{}')"/>
+            <xsl:for-each select="$link">
+                <ixsl:set-property name="source" select="$source-id" object="."/>
+                <ixsl:set-property name="target" select="$target-id" object="."/>
+                <ixsl:set-property name="label" select="$link-label" object="."/>
+            </xsl:for-each>
+            <xsl:sequence select="$link"/>
+        </xsl:if>
     </xsl:template>
 
     <!-- Suppress whitespace-only text nodes in links mode -->

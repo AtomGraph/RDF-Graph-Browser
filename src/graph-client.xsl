@@ -5,6 +5,7 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:ac="https://w3id.org/atomgraph/client#"
     xmlns:ldh="https://w3id.org/atomgraph/linkeddatahub#"
     xmlns:local="http://example.org/local#"
     exclude-result-prefixes="#all"
@@ -17,6 +18,7 @@
 
     <!-- Global parameters -->
     <xsl:param name="graph-id" select="'3d-graph'" as="xs:string"/> <!-- string: graph container element ID -->
+    <xsl:param name="ac:lang" select="ixsl:get(ixsl:get(ixsl:page(), 'documentElement'), 'lang')" as="xs:string"/>
     <xsl:param name="info-panel-content" as="element()">
         <div>Click a node or link to see details<br/>Double-click a node to expand its properties</div>
     </xsl:param>
@@ -114,7 +116,7 @@
 
         <xsl:message>XSLT initialized - ready to handle graph events</xsl:message>
 
-        <!-- Create tooltip and info panel UI elements -->
+        <!-- Create tooltip, info panel, and show panel UI elements -->
         <xsl:for-each select="$container">
             <xsl:result-document href="?." method="ixsl:append-content">
                 <div id="tooltip-{$graph-id}"></div>
@@ -122,6 +124,16 @@
                     <div id="info-content-{$graph-id}">
                         <xsl:copy-of select="$info-panel-content"/>
                     </div>
+                </div>
+                <div id="show-panel-{$graph-id}" class="show-panel">
+                    <strong>Show</strong>
+                    <label><input type="checkbox" id="show-stubs-{$graph-id}" checked="checked"/> Resources without descriptions</label>
+                    <label>
+                        <input type="checkbox" id="show-literals-{$graph-id}" checked="checked"/> Literals
+                        <label class="sub-option">
+                            <input type="checkbox" id="show-locale-literals-{$graph-id}" checked="checked"/> Matching locale only
+                        </label>
+                    </label>
                 </div>
             </xsl:result-document>
         </xsl:for-each>
@@ -143,6 +155,32 @@
         <xsl:variable name="graph-instance" select="ixsl:get($graph-state, 'instance')"/>
         <xsl:sequence select="ixsl:call($graph-instance, 'zoomToFit', [ $zoom-transition-duration, $zoom-padding ])[current-date() lt xs:date('2000-01-01')]"/>
         <xsl:message>Camera zoomed to fit all nodes</xsl:message>
+    </xsl:template>
+
+    <!-- Re-convert the global RDF document with current filter state and update the graph -->
+    <xsl:template name="redisplay-graph">
+        <xsl:param name="graph-instance" as="item()" required="yes"/>
+
+        <xsl:variable name="LinkedDataHub" select="ixsl:get(ixsl:window(), 'LinkedDataHub')"/>
+        <xsl:variable name="current-doc" select="ixsl:get($LinkedDataHub, 'document')" as="document-node()"/>
+
+        <xsl:variable name="show-stubs"
+            select="xs:boolean(ixsl:get(id(concat('show-stubs-', $graph-id), ixsl:page()), 'checked'))"/>
+        <xsl:variable name="show-literals"
+            select="xs:boolean(ixsl:get(id(concat('show-literals-', $graph-id), ixsl:page()), 'checked'))"/>
+        <xsl:variable name="locale-filter" as="xs:string?"
+            select="if ($show-literals and xs:boolean(ixsl:get(id(concat('show-locale-literals-', $graph-id), ixsl:page()), 'checked')))
+                    then tokenize($ac:lang, '-')[1]
+                    else ()"/>
+
+        <xsl:variable name="graph-data" as="item()">
+            <xsl:apply-templates select="$current-doc" mode="ldh:ForceGraph3D-convert-data">
+                <xsl:with-param name="show-stubs"    select="$show-stubs"    tunnel="yes"/>
+                <xsl:with-param name="show-literals"  select="$show-literals"  tunnel="yes"/>
+                <xsl:with-param name="locale-filter"  select="$locale-filter"  tunnel="yes"/>
+            </xsl:apply-templates>
+        </xsl:variable>
+        <xsl:sequence select="ixsl:call($graph-instance, 'graphData', [$graph-data], map{'convert-args': false()})[current-date() lt xs:date('2000-01-01')]"/>
     </xsl:template>
 
     <!-- Update graph with new RDF descriptions -->
@@ -167,15 +205,12 @@
         <xsl:variable name="LinkedDataHub" select="ixsl:get(ixsl:window(), 'LinkedDataHub')"/>
         <ixsl:set-property name="document" select="$merged-doc" object="$LinkedDataHub"/>
 
-        <!-- Convert entire merged document to graph data -->
-        <xsl:variable name="graph-data" as="item()">
-            <xsl:apply-templates select="$merged-doc" mode="ldh:ForceGraph3D-convert-data"/>
-        </xsl:variable>
-
-        <!-- Update graph visualization -->
-        <xsl:sequence select="ixsl:call($graph-instance, 'graphData', [ $graph-data ], map{ 'convert-args': false() })[current-date() lt xs:date('2000-01-01')]"/>
-
         <xsl:message>Graph updated with <xsl:value-of select="count($merged-doc/rdf:RDF/*)"/> total descriptions</xsl:message>
+
+        <!-- Re-convert and display with current filter state -->
+        <xsl:call-template name="redisplay-graph">
+            <xsl:with-param name="graph-instance" select="$graph-instance"/>
+        </xsl:call-template>
     </xsl:template>
 
     <!-- Load RDF document and update graph -->
@@ -533,6 +568,24 @@
             <dt>ID</dt>
             <dd><xsl:value-of select="$node-id"/></dd>
         </dl>
+    </xsl:template>
+
+    <!-- Show panel filter handlers -->
+
+    <xsl:template match="*[@id = 'show-stubs-3d-graph'] |
+                         *[@id = 'show-literals-3d-graph'] |
+                         *[@id = 'show-locale-literals-3d-graph']"
+                  mode="ixsl:onchange">
+        <!-- When literals checkbox changes, sync disabled state of locale sub-checkbox -->
+        <xsl:if test="@id = concat('show-literals-', $graph-id)">
+            <xsl:variable name="locale-cb" select="id(concat('show-locale-literals-', $graph-id), ixsl:page())"/>
+            <ixsl:set-property name="disabled" select="not(ixsl:get(., 'checked'))" object="$locale-cb"/>
+        </xsl:if>
+
+        <xsl:variable name="graph-instance" select="ixsl:get(local:get-graph-state($graph-id), 'instance')"/>
+        <xsl:call-template name="redisplay-graph">
+            <xsl:with-param name="graph-instance" select="$graph-instance"/>
+        </xsl:call-template>
     </xsl:template>
 
     <!-- Tooltip rendering -->
