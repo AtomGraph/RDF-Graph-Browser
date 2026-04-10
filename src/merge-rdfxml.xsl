@@ -39,11 +39,13 @@
         <xsl:param name="new-rdf" as="document-node()" tunnel="yes"/>
 
         <xsl:copy>
-            <xsl:apply-templates select="@* | node()" mode="#current"/>
+            <xsl:apply-templates select="@*" mode="#current"/>
 
-            <!-- Add new properties from $new-rdf for the same resource -->
             <xsl:variable name="resource-uri" select="@rdf:about" as="xs:anyURI"/>
-            <xsl:apply-templates select="key('resources', $resource-uri, $new-rdf)/*" mode="#current"/>
+            <xsl:for-each-group select="* | key('resources', $resource-uri, $new-rdf)/*"
+                group-by="concat(node-name(.), '|', (@rdf:resource, @rdf:nodeID, string(.))[1])">
+                <xsl:apply-templates select="current-group()[1]" mode="#current"/>
+            </xsl:for-each-group>
         </xsl:copy>
     </xsl:template>
 

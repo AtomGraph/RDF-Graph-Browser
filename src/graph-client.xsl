@@ -17,7 +17,6 @@
 
     <!-- Global parameters -->
     <xsl:param name="graph-id" select="'3d-graph'" as="xs:string"/> <!-- string: graph container element ID -->
-    <xsl:param name="cors-proxy" select="'https://corsproxy.io/'" as="xs:string"/> <!-- string: CORS proxy URL prefix -->
     <xsl:param name="info-panel-content" as="element()">
         <div>Click a node or link to see details<br/>Double-click a node to expand its properties</div>
     </xsl:param>
@@ -35,7 +34,7 @@
 
     <!-- Main template - runs on page load -->
     <xsl:template name="main">
-        <xsl:param name="document-uri" select="xs:anyURI('https://linkeddatahub.com/demo/skos/concepts/concept17128/')" as="xs:anyURI"/>
+        <xsl:param name="document-uri" select="xs:anyURI('https://unesco-thesaurus.demo.linkeddatahub.com/concepts/concept17128/')" as="xs:anyURI"/>
         <xsl:param name="graph-width" select="800" as="xs:double"/>
         <xsl:param name="graph-height" select="600" as="xs:double"/>
         <xsl:param name="node-rel-size" select="6" as="xs:double"/>
@@ -187,13 +186,10 @@
 
         <xsl:message>Loading RDF data from <xsl:value-of select="$document-uri"/>...</xsl:message>
 
-        <!-- Wrap document URI with CORS proxy -->
-        <xsl:variable name="proxied-uri" select="xs:anyURI($cors-proxy || '?url=' || encode-for-uri($document-uri))" as="xs:anyURI"/>
-
         <!-- Create HTTP request with Accept header for RDF/XML and pool storage -->
         <xsl:variable name="request" select="map{
             'method': 'GET',
-            'href': $proxied-uri,
+            'href': $document-uri,
             'headers': map{ 'Accept': 'application/rdf+xml' },
             'pool': 'xml'
         }" as="map(*)"/>
@@ -359,29 +355,20 @@
         <xsl:variable name="canvas-id" select="ixsl:get($event-detail, 'canvasId')" as="xs:string"/>
         <xsl:variable name="node-id" select="ixsl:get($event-detail, 'nodeId')" as="xs:string"/>
         <xsl:variable name="node-label" select="ixsl:get($event-detail, 'nodeLabel')" as="xs:string"/>
-        <xsl:variable name="node-type" select="ixsl:get($event-detail, 'nodeType')" as="xs:string"/>
 
         <xsl:message>Node clicked: <xsl:value-of select="$node-id"/> (<xsl:value-of select="$node-label"/>)</xsl:message>
+
+        <xsl:variable name="LinkedDataHub" select="ixsl:get(ixsl:window(), 'LinkedDataHub')"/>
+        <xsl:variable name="rdf-doc" select="ixsl:get($LinkedDataHub, 'document')" as="document-node()"/>
+        <xsl:variable name="description" select="key('resources', $node-id, $rdf-doc)"/>
 
         <xsl:variable name="info-content-id" select="concat('info-content-', $canvas-id)" as="xs:string"/>
         <xsl:for-each select="id($info-content-id, ixsl:page())">
             <xsl:result-document href="?." method="ixsl:replace-content">
-                <h4><xsl:value-of select="$node-label"/></h4>
-                <dl>
-                    <dt>ID</dt>
-                    <dd>
-                        <xsl:choose>
-                            <xsl:when test="starts-with($node-id, 'http://') or starts-with($node-id, 'https://')">
-                                <a href="{$node-id}" target="_blank"><xsl:value-of select="$node-id"/></a>
-                            </xsl:when>
-                            <xsl:otherwise>
-                                <xsl:value-of select="$node-id"/>
-                            </xsl:otherwise>
-                        </xsl:choose>
-                    </dd>
-                    <dt>Types</dt>
-                    <dd><xsl:value-of select="$node-type"/></dd>
-                </dl>
+                <xsl:apply-templates select="if (exists($description)) then $description else $node-label" mode="ldh:info-panel">
+                    <xsl:with-param name="node-id" select="$node-id"/>
+                    <xsl:with-param name="node-label" select="$node-label"/>
+                </xsl:apply-templates>
             </xsl:result-document>
         </xsl:for-each>
     </xsl:template>
@@ -471,19 +458,23 @@
         <xsl:variable name="canvas-id" select="ixsl:get($event-detail, 'canvasId')" as="xs:string"/>
         <xsl:variable name="node-id" select="ixsl:get($event-detail, 'nodeId')" as="xs:string"/>
         <xsl:variable name="node-label" select="ixsl:get($event-detail, 'nodeLabel')" as="xs:string"/>
-        <xsl:variable name="node-type" select="ixsl:get($event-detail, 'nodeType')" as="xs:string"/>
         <xsl:variable name="screen-x" select="ixsl:get($event-detail, 'screenX')" as="xs:double"/>
         <xsl:variable name="screen-y" select="ixsl:get($event-detail, 'screenY')" as="xs:double"/>
         <xsl:variable name="tooltip-id" select="concat('tooltip-', $canvas-id)" as="xs:string"/>
 
+        <xsl:variable name="LinkedDataHub" select="ixsl:get(ixsl:window(), 'LinkedDataHub')"/>
+        <xsl:variable name="rdf-doc" select="ixsl:get($LinkedDataHub, 'document')" as="document-node()"/>
+        <xsl:variable name="description" select="key('resources', $node-id, $rdf-doc)"/>
+
         <xsl:for-each select="id($tooltip-id, ixsl:page())">
-            <!-- Show tooltip centered over node -->
+            <!-- Show tooltip positioned over node -->
             <ixsl:set-style name="display" select="'block'"/>
             <ixsl:set-style name="left" select="concat($screen-x, 'px')"/>
             <ixsl:set-style name="top" select="concat($screen-y, 'px')"/>
             <xsl:result-document href="?." method="ixsl:replace-content">
-                <strong><xsl:value-of select="$node-label"/></strong><br/>
-                <xsl:value-of select="$node-type"/>
+                <xsl:apply-templates select="if (exists($description)) then $description else $node-label" mode="ldh:tooltip">
+                    <xsl:with-param name="node-label" select="$node-label"/>
+                </xsl:apply-templates>
             </xsl:result-document>
         </xsl:for-each>
     </xsl:template>
@@ -509,6 +500,54 @@
 
     <xsl:template match="." mode="ixsl:onForceGraph3DBackgroundClick">
         <xsl:message>Background clicked</xsl:message>
+    </xsl:template>
+
+    <!-- Info panel rendering -->
+
+    <xsl:template match="rdf:Description" mode="ldh:info-panel">
+        <xsl:param name="node-id" as="xs:string"/>
+        <xsl:param name="node-label" as="xs:string"/>
+        <h4><xsl:value-of select="$node-label"/></h4>
+        <dl>
+            <dt>ID</dt>
+            <dd>
+                <xsl:choose>
+                    <xsl:when test="starts-with($node-id, 'http://') or starts-with($node-id, 'https://')">
+                        <a href="{$node-id}" target="_blank"><xsl:value-of select="$node-id"/></a>
+                    </xsl:when>
+                    <xsl:otherwise><xsl:value-of select="$node-id"/></xsl:otherwise>
+                </xsl:choose>
+            </dd>
+            <xsl:if test="rdf:type">
+                <dt>Types</dt>
+                <dd><xsl:value-of select="distinct-values(rdf:type/tokenize(@rdf:resource, '[/#]')[last()])" separator=", "/></dd>
+            </xsl:if>
+        </dl>
+    </xsl:template>
+
+    <!-- Fallback: no rdf:Description found (literal or unresolved URI) -->
+    <xsl:template match="xs:string" mode="ldh:info-panel">
+        <xsl:param name="node-id" as="xs:string"/>
+        <h4><xsl:value-of select="."/></h4>
+        <dl>
+            <dt>ID</dt>
+            <dd><xsl:value-of select="$node-id"/></dd>
+        </dl>
+    </xsl:template>
+
+    <!-- Tooltip rendering -->
+
+    <xsl:template match="rdf:Description" mode="ldh:tooltip">
+        <xsl:param name="node-label" as="xs:string"/>
+        <strong><xsl:value-of select="$node-label"/></strong>
+        <xsl:if test="rdf:type">
+            <br/><xsl:value-of select="distinct-values(rdf:type/tokenize(@rdf:resource, '[/#]')[last()])" separator=", "/>
+        </xsl:if>
+    </xsl:template>
+
+    <!-- Fallback: no rdf:Description found (literal or unresolved URI) -->
+    <xsl:template match="xs:string" mode="ldh:tooltip">
+        <strong><xsl:value-of select="."/></strong>
     </xsl:template>
 
 </xsl:stylesheet>
