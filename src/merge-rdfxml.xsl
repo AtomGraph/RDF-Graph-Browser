@@ -7,9 +7,6 @@
     exclude-result-prefixes="#all"
     version="3.0">
 
-    <!-- Key for looking up resources by @rdf:about -->
-    <xsl:key name="resources" match="rdf:Description[@rdf:about]" use="@rdf:about"/>
-
     <!-- Identity template for ldh:MergeRDF mode -->
     <xsl:template match="@* | node()" mode="ldh:MergeRDF">
         <xsl:copy>

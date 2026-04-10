@@ -12,6 +12,7 @@
     extension-element-prefixes="ixsl"
     version="3.0">
 
+    <xsl:import href="util.xsl"/>
     <xsl:import href="normalize-rdfxml.xsl"/>
     <xsl:import href="merge-rdfxml.xsl"/>
     <xsl:import href="3d-force-graph.xsl"/>

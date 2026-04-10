@@ -15,9 +15,6 @@
     extension-element-prefixes="ixsl"
     version="3.0">
 
-    <!-- Key to lookup resources by URI or nodeID -->
-    <xsl:key name="resources" match="*[*][@rdf:about] | *[*][@rdf:nodeID]" use="@rdf:about | @rdf:nodeID"/>
-
     <!-- Max characters shown for literal node labels before truncation -->
     <xsl:variable name="ldh:literal-label-max-length" as="xs:integer" select="40"/>
 
@@ -45,45 +42,6 @@
                 <xsl:otherwise>
                     <!-- Default gray for resources without type -->
                     <xsl:sequence select="'#95a5a6'"/>
-                </xsl:otherwise>
-            </xsl:choose>
-        </xsl:for-each>
-    </xsl:function>
-
-    <xsl:function name="ac:label" as="xs:string">
-        <xsl:param name="resource" as="element()"/>
-
-        <xsl:for-each select="$resource">
-            <xsl:choose>
-                <!-- Prefer English labels -->
-                <xsl:when test="skos:prefLabel[lang('en')]">
-                    <xsl:sequence select="string(skos:prefLabel[lang('en')][1])"/>
-                </xsl:when>
-                <xsl:when test="foaf:name[lang('en')]">
-                    <xsl:sequence select="string(foaf:name[lang('en')][1])"/>
-                </xsl:when>
-                <xsl:when test="rdfs:label[lang('en')]">
-                    <xsl:sequence select="string(rdfs:label[lang('en')][1])"/>
-                </xsl:when>
-                <xsl:when test="dct:title[lang('en')]">
-                    <xsl:sequence select="string(dct:title[lang('en')][1])"/>
-                </xsl:when>
-                <!-- Fallback to any language -->
-                <xsl:when test="skos:prefLabel">
-                    <xsl:sequence select="string(skos:prefLabel[1])"/>
-                </xsl:when>
-                <xsl:when test="foaf:name">
-                    <xsl:sequence select="string(foaf:name[1])"/>
-                </xsl:when>
-                <xsl:when test="rdfs:label">
-                    <xsl:sequence select="string(rdfs:label[1])"/>
-                </xsl:when>
-                <xsl:when test="dct:title">
-                    <xsl:sequence select="string(dct:title[1])"/>
-                </xsl:when>
-                <xsl:otherwise>
-                    <!-- Fallback: use last segment of rdf:about, or rdf:nodeID for blank nodes -->
-                    <xsl:sequence select="if (@rdf:about) then tokenize(@rdf:about, '[/#]')[last()] else @rdf:nodeID"/>
                 </xsl:otherwise>
             </xsl:choose>
         </xsl:for-each>
