@@ -49,6 +49,7 @@
         <xsl:param name="link-label-text-height" select="3" as="xs:double"/>
         <xsl:param name="link-force-distance" select="100" as="xs:double"/>
         <xsl:param name="charge-force-strength" select="-200" as="xs:double"/>
+        <xsl:param name="highlight-color" select="'#ffff00'" as="xs:string"/>
 
         <!-- Initialize LinkedDataHub namespace -->
         <xsl:if test="not(ixsl:contains(ixsl:window(), 'LinkedDataHub'))">
@@ -97,6 +98,7 @@
                 <xsl:with-param name="node-hover-off-event-name" select="'ForceGraph3DNodeHoverOff'"/>
                 <xsl:with-param name="link-click-event-name" select="'ForceGraph3DLinkClick'"/>
                 <xsl:with-param name="background-click-event-name" select="'ForceGraph3DBackgroundClick'"/>
+                <xsl:with-param name="highlight-color" select="$highlight-color"/>
             </xsl:call-template>
         </xsl:variable>
 
@@ -181,6 +183,10 @@
                 <xsl:with-param name="locale-filter"  select="$locale-filter"  tunnel="yes"/>
             </xsl:apply-templates>
         </xsl:variable>
+        <!-- Reset highlighting until force engine settles again -->
+        <xsl:variable name="graph-state" select="local:get-graph-state($graph-id)"/>
+        <ixsl:set-property name="highlightingEnabled" select="false()" object="$graph-state"/>
+
         <xsl:sequence select="ixsl:call($graph-instance, 'graphData', [$graph-data], map{'convert-args': false()})[current-date() lt xs:date('2000-01-01')]"/>
     </xsl:template>
 

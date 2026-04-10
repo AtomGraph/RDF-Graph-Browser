@@ -77,6 +77,7 @@
         <xsl:param name="link-click-event-name" as="xs:string"/> <!-- string: event name for link click -->
         <xsl:param name="background-click-event-name" as="xs:string"/> <!-- string: event name for background click -->
         <xsl:param name="engine-stop-event-name" as="xs:string?"/> <!-- string: event name for engine stop (optional) -->
+        <xsl:param name="highlight-color" select="'#ffff00'" as="xs:string"/> <!-- string: CSS hex color for hover highlight -->
 
         <!-- Optional JavaScript function parameters - callers can override default behavior -->
         <xsl:param name="nodeLabel-fn" select="ixsl:eval('() => null')" as="item()?"/> <!-- function: node label accessor -->
@@ -133,20 +134,25 @@
             );
             Object.assign(sprite.position, middlePos);
         }')" as="item()?"/> <!-- function: link sprite position updater -->
-        <xsl:param name="onEngineStop-fn" as="item()?"> <!-- function: engine stop handler -->
-            <xsl:if test="exists($engine-stop-event-name)">
-                <xsl:variable name="js-statement" as="element()">
-                    <root statement="() => {{
-                        let event = new CustomEvent('{$engine-stop-event-name}', {{
-                            detail: {{
-                                canvasId: '{$graph-id}'
-                            }}
-                        }});
-                        document.dispatchEvent(event);
-                    }}"/>
-                </xsl:variable>
-                <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
-            </xsl:if>
+        <xsl:param name="onEngineStop-fn" as="item()"> <!-- function: engine stop handler -->
+            <xsl:variable name="js-statement" as="element()">
+                <xsl:choose>
+                    <xsl:when test="exists($engine-stop-event-name)">
+                        <root statement="() => {{
+                            window.LinkedDataHub.graphs['{$graph-id}'].highlightingEnabled = true;
+                            document.dispatchEvent(new CustomEvent('{$engine-stop-event-name}', {{
+                                detail: {{ canvasId: '{$graph-id}' }}
+                            }}));
+                        }}"/>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <root statement="() => {{
+                            window.LinkedDataHub.graphs['{$graph-id}'].highlightingEnabled = true;
+                        }}"/>
+                    </xsl:otherwise>
+                </xsl:choose>
+            </xsl:variable>
+            <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
         </xsl:param>
         <xsl:param name="onNodeClick-fn" as="item()?"> <!-- function: node click handler -->
             <xsl:variable name="js-statement" as="element()">
@@ -197,10 +203,41 @@
         <xsl:param name="onNodeHover-fn-factory" as="item()?"> <!-- function: creates node hover handler -->
             <xsl:variable name="js-statement" as="element()">
                 <root statement="(graphInstance) => {{
+                    var highlightNodes = [];
+                    var highlightLinks = [];
+                    var highlightColor = '{$highlight-color}';
+
+                    graphInstance
+                        .nodeColor(function(node) {{
+                            return highlightNodes.indexOf(node) >= 0 ? highlightColor : (node.color || '#999999');
+                        }})
+                        .linkColor(function(link) {{
+                            return highlightLinks.indexOf(link) >= 0 ? highlightColor : (link.color || '#aaaaaa');
+                        }})
+                        .linkOpacity(1);
+
                     return (node) => {{
+                        highlightNodes = [];
+                        highlightLinks = [];
+
                         if (node) {{
+                            if (window.LinkedDataHub.graphs['{$graph-id}'].highlightingEnabled) {{
+                                var graphData = graphInstance.graphData();
+                                graphData.links.forEach(link => {{
+                                    var srcId = link.source &amp;&amp; typeof link.source === 'object' ? link.source.id : link.source;
+                                    if (srcId === node.id) {{
+                                        highlightLinks.push(link);
+                                        if (link.target &amp;&amp; typeof link.target === 'object') highlightNodes.push(link.target);
+                                    }}
+                                }});
+                                highlightNodes.push(node);
+                            }}
+
+                            graphInstance.nodeColor(graphInstance.nodeColor());
+                            graphInstance.linkColor(graphInstance.linkColor());
+
                             const screenCoords = graphInstance.graph2ScreenCoords(node.x, node.y, node.z);
-                            let event = new CustomEvent('{$node-hover-on-event-name}', {{
+                            document.dispatchEvent(new CustomEvent('{$node-hover-on-event-name}', {{
                                 detail: {{
                                     canvasId: '{$graph-id}',
                                     nodeId: node.id,
@@ -208,15 +245,16 @@
                                     screenX: screenCoords.x,
                                     screenY: screenCoords.y
                                 }}
-                            }});
-                            document.dispatchEvent(event);
+                            }}));
                         }} else {{
-                            let event = new CustomEvent('{$node-hover-off-event-name}', {{
+                            graphInstance.nodeColor(graphInstance.nodeColor());
+                            graphInstance.linkColor(graphInstance.linkColor());
+
+                            document.dispatchEvent(new CustomEvent('{$node-hover-off-event-name}', {{
                                 detail: {{
                                     canvasId: '{$graph-id}'
                                 }}
-                            }});
-                            document.dispatchEvent(event);
+                            }}));
                         }}
                     }};
                 }}"/>
@@ -298,6 +336,7 @@
         <xsl:for-each select="$graph-state">
             <ixsl:set-property name="instance" select="$graph" object="."/>
             <ixsl:set-property name="showLabels" select="false()" object="."/>
+            <ixsl:set-property name="highlightingEnabled" select="false()" object="."/>
         </xsl:for-each>
         <!-- Return the graph state for further use -->
         <xsl:sequence select="$graph-state"/>
