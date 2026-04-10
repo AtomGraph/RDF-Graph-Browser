@@ -374,7 +374,25 @@
 
     <!-- Level 1: rdf:RDF -->
     <xsl:template match="rdf:RDF" mode="ldh:ForceGraph3D-nodes" as="item()*">
+        <xsl:param name="show-stubs" select="true()" tunnel="yes" as="xs:boolean"/>
+
+        <!-- Resource, literal, and blank node stub nodes from described resources -->
         <xsl:apply-templates mode="#current"/>
+
+        <!-- One stub URI node per unique unresolved @rdf:resource (deduplicates across all descriptions) -->
+        <xsl:if test="$show-stubs">
+            <xsl:for-each select="distinct-values(rdf:Description/*/@rdf:resource[not(key('resources', .))])">
+                <xsl:variable name="uri" select="xs:anyURI(.)" as="xs:anyURI"/>
+                <xsl:variable name="node" select="ixsl:eval('{}')"/>
+                <xsl:for-each select="$node">
+                    <ixsl:set-property name="id" select="$uri" object="."/>
+                    <ixsl:set-property name="label" select="$uri" object="."/>
+                    <ixsl:set-property name="nodeType" select="'uri'" object="."/>
+                    <ixsl:set-property name="color" select="'#7f8c8d'" object="."/>
+                </xsl:for-each>
+                <xsl:sequence select="$node"/>
+            </xsl:for-each>
+        </xsl:if>
     </xsl:template>
 
     <!-- Level 2: described resource node + dispatch into properties -->
@@ -404,21 +422,8 @@
         <xsl:apply-templates select="@rdf:resource | @rdf:nodeID | text() | *" mode="#current"/>
     </xsl:template>
 
-    <!-- Level 4a: @rdf:resource not described → URI-only node -->
-    <xsl:template match="@rdf:resource[not(key('resources', .))]" mode="ldh:ForceGraph3D-nodes" as="item()?">
-        <xsl:param name="show-stubs" select="true()" tunnel="yes" as="xs:boolean"/>
-        <xsl:if test="$show-stubs">
-            <xsl:variable name="uri" select="xs:anyURI(.)" as="xs:anyURI"/>
-            <xsl:variable name="node" select="ixsl:eval('{}')"/>
-            <xsl:for-each select="$node">
-                <ixsl:set-property name="id" select="$uri" object="."/>
-                <ixsl:set-property name="label" select="$uri" object="."/>
-                <ixsl:set-property name="nodeType" select="'uri'" object="."/>
-                <ixsl:set-property name="color" select="'#7f8c8d'" object="."/>
-            </xsl:for-each>
-            <xsl:sequence select="$node"/>
-        </xsl:if>
-    </xsl:template>
+    <!-- Level 4a: @rdf:resource not described → suppress; stub nodes created at rdf:RDF level with deduplication -->
+    <xsl:template match="@rdf:resource[not(key('resources', .))]" mode="ldh:ForceGraph3D-nodes"/>
 
     <!-- Level 4a: @rdf:resource already described → suppress (node already emitted at level 2) -->
     <xsl:template match="@rdf:resource" mode="ldh:ForceGraph3D-nodes"/>
