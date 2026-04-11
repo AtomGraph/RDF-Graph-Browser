@@ -7,9 +7,6 @@
     exclude-result-prefixes="#all"
     version="3.0">
 
-    <!-- Key for looking up resources by @rdf:about -->
-    <xsl:key name="resources" match="rdf:Description[@rdf:about]" use="@rdf:about"/>
-
     <!-- Identity template for ldh:MergeRDF mode -->
     <xsl:template match="@* | node()" mode="ldh:MergeRDF">
         <xsl:copy>
@@ -25,25 +22,29 @@
             <xsl:apply-templates select="@* | node()" mode="#current"/>
 
             <xsl:variable name="existing-rdf" select="root(.)" as="document-node()"/>
-            <!-- Add new descriptions that don't exist in the existing document -->
-            <xsl:for-each select="$new-rdf/rdf:RDF/*[@rdf:about]">
-                <xsl:if test="not(key('resources', @rdf:about, $existing-rdf))">
+            <!-- Add new descriptions (URI-identified or blank nodes) that don't exist in the existing document -->
+            <!-- Blank node IDs are prefixed per-document during normalization, so no conflicts -->
+            <xsl:for-each select="$new-rdf/rdf:RDF/*[@rdf:about or @rdf:nodeID]">
+                <xsl:variable name="id" select="(@rdf:about, @rdf:nodeID)[1]" as="xs:string"/>
+                <xsl:if test="not(key('resources', $id, $existing-rdf))">
                     <xsl:apply-templates select="." mode="#current"/>
                 </xsl:if>
             </xsl:for-each>
         </xsl:copy>
     </xsl:template>
 
-    <!-- Merge new properties into existing rdf:Description -->
-    <xsl:template match="rdf:Description" mode="ldh:MergeRDF">
+    <!-- Merge new properties into existing URI-identified rdf:Description -->
+    <xsl:template match="rdf:Description[@rdf:about]" mode="ldh:MergeRDF">
         <xsl:param name="new-rdf" as="document-node()" tunnel="yes"/>
 
         <xsl:copy>
-            <xsl:apply-templates select="@* | node()" mode="#current"/>
+            <xsl:apply-templates select="@*" mode="#current"/>
 
-            <!-- Add new properties from $new-rdf for the same resource -->
             <xsl:variable name="resource-uri" select="@rdf:about" as="xs:anyURI"/>
-            <xsl:apply-templates select="key('resources', $resource-uri, $new-rdf)/*" mode="#current"/>
+            <xsl:for-each-group select="* | key('resources', $resource-uri, $new-rdf)/*"
+                group-by="concat(node-name(.), '|', (@rdf:resource, @rdf:nodeID, string(.))[1])">
+                <xsl:apply-templates select="current-group()[1]" mode="#current"/>
+            </xsl:for-each-group>
         </xsl:copy>
     </xsl:template>
 
