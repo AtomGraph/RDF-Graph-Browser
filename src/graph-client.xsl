@@ -38,8 +38,8 @@
     <!-- Main template - runs on page load -->
     <xsl:template name="main">
         <xsl:param name="document-uri" select="xs:anyURI('https://unesco-thesaurus.demo.linkeddatahub.com/concepts/concept17128/')" as="xs:anyURI"/>
-        <xsl:param name="graph-width" select="800" as="xs:double"/>
-        <xsl:param name="graph-height" select="600" as="xs:double"/>
+        <xsl:param name="graph-width" select="ixsl:get(ixsl:window(), 'innerWidth')" as="xs:double"/>
+        <xsl:param name="graph-height" select="ixsl:get(ixsl:window(), 'innerHeight')" as="xs:double"/>
         <xsl:param name="node-rel-size" select="6" as="xs:double"/>
         <xsl:param name="link-width" select="2" as="xs:double"/>
         <xsl:param name="node-label-color" select="'white'" as="xs:string"/>

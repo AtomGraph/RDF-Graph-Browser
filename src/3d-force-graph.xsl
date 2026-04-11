@@ -51,7 +51,7 @@
     <xsl:template name="ldh:ForceGraph3D-init">
         <xsl:param name="graph-id" as="xs:string"/> <!-- string: graph container element ID -->
         <xsl:param name="container" as="element()"/> <!-- HTMLElement: DOM element for graph -->
-        <xsl:param name="builder" as="item()"/> <!-- function: ForceGraph3D constructor -->
+        <xsl:param name="builder" as="item()?"/> <!-- function: ForceGraph3D constructor -->
         <xsl:param name="graph-width" as="xs:double"/> <!-- number: canvas width in px -->
         <xsl:param name="graph-height" as="xs:double"/> <!-- number: canvas height in px -->
         <xsl:param name="node-rel-size" as="xs:double"/> <!-- number: relative node size -->
@@ -291,12 +291,19 @@
             <xsl:sequence select="ixsl:eval(string($js-statement/@statement))"/>
         </xsl:param>
 
+        <!-- Guard: ForceGraph3D library must be loaded -->
+        <xsl:if test="empty($builder)">
+            <xsl:message terminate="yes">ForceGraph3D constructor not found on window. Ensure 3d-force-graph.min.js is loaded before Saxon-JS.</xsl:message>
+        </xsl:if>
+
         <!-- Create the graph instance -->
         <xsl:variable name="graph" select="ixsl:apply($builder, [ $container ])" as="item()"/>
 
         <!-- Configure graph -->
         <xsl:variable name="graph" select="if (exists($nodeLabel-fn)) then ixsl:call($graph, 'nodeLabel', [ $nodeLabel-fn ]) else $graph"/>
         <xsl:variable name="graph" select="if (exists($nodeColor-fn)) then ixsl:call($graph, 'nodeColor', [ $nodeColor-fn ]) else $graph"/>
+        <xsl:variable name="graph" select="ixsl:call($graph, 'width', [ $graph-width ])"/>
+        <xsl:variable name="graph" select="ixsl:call($graph, 'height', [ $graph-height ])"/>
         <xsl:variable name="graph" select="ixsl:call($graph, 'nodeRelSize', [ $node-rel-size ])"/>
         <xsl:variable name="graph" select="ixsl:call($graph, 'linkWidth', [ $link-width ])"/>
 
